@@ -366,6 +366,11 @@ for r in root:
 
 if args.dryrun:
 
+	try:
+		from termcolor import colored
+	except ImportError:
+		colored = lambda s, c: s
+
 	# just print a filesystem tree for the remarkable representation of what we are going to create
 	def print_tree(node, padding):
 		"""
@@ -373,9 +378,9 @@ if args.dryrun:
 		including a note if the according node already exists on the remarkable or not
 		"""
 		if node.gets_modified:
-			note = "| !!! gets modified !!!"
+			note = colored("| !!! gets modified !!!", 'red')
 		elif node.exists:
-			note = "| exists already"
+			note = colored("| exists already", 'green')
 		else:
 			note = ""
 
