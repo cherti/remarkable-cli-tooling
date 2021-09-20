@@ -24,6 +24,7 @@ parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=Fal
 parser.add_argument('-s', '--skip-existing-files', dest='skip_existing_files', action='store_true', default=False, help="Don't copy additional versions of existing files")
 parser.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
 parser.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
+parser.add_argument('--debug', dest='debug', action='store_true', default=False, help="Render documents, but don't copy to remarkable.")
 parser.add_argument('documents', metavar='documents', type=str, nargs='*', help='')
 
 args = parser.parse_args()
@@ -376,7 +377,6 @@ else:
 
 	# we'll only ever have one root if we specified an output dir
 	root.sync_ids()
-	root.render(args.prepdir)
 
 if args.dryrun:
 
@@ -406,8 +406,15 @@ if args.dryrun:
 	else:
 		print_tree(root, "")
 
+elif args.debug:
+
+	root.render(args.prepdir)
 	print(f' --> Payload data can be found in {args.prepdir}')
+
 else:
+
+	root.render(args.prepdir)
+
 	subprocess.call(f'scp -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
 	subprocess.call(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} systemctl restart xochitl', shell=True)
 
