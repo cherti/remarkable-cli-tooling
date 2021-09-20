@@ -177,6 +177,20 @@ class Node:
 		it also assigns ids based on our desired outcome, i.e. uploading everything, keeping things synced or overwriting
 		"""
 		metadata = get_metadata_by_visibleName(self.name)
+
+		# first, we filter the metadata we got for those that are actually in the same location
+		# in the document tree that this node is, i.e. same parent and same document type
+		filtered_metadata = []
+		for (did, md) in metadata:
+			location_match = (self.parent is None and md['parent'] == '') or (self.parent.id == md['parent'])  # (is root node) or (has matching parent)
+			type_match = self.doctype == md['type']
+			if location_match and type_match:
+				# only keep metadata at the same location in the filesystem tree
+				filtered_metadata.append((did, md))
+
+		metadata = filtered_metadata
+
+
 		if len(metadata) == 0 or (self.doctype == 'DocumentType' and not args.overwrite and not args.skip_existing_files):
 			# nonexistent or we don't care about existing documents (latter for files only)
 			self.id = gen_did()
@@ -184,69 +198,41 @@ class Node:
 
 		elif len(metadata) == 1:
 
-			# ok, we have a document already in place at this node_point
-			# first, get unpack its metadata
+			# ok, we have a document already in place at this node_point that fits the position in the document tree
+			# first, get unpack its metadata and assign the document id
 			did, md = metadata[0]
+			self.id = did
 
-			# now let's see if it's actually in the same location we are targeting and of the same type
-			location_match = (self.parent is None and md['parent'] == '') or (self.parent.id == md['parent'])  # (is root node) or (has matching parent)
-			type_match = self.doctype == md['type']
+			if self.doctype == 'CollectionType' or not args.overwrite:
 
-			if location_match and type_match:
-
-				# yes, it is right there where we are wanting to place something, so assign its document id
-				self.id = did
-
-				if self.doctype == 'CollectionType' or not args.overwrite:
-
-					# if it's a folder or if we do not intend to overwrite anything, simply mark the node as existing
-					self.exists = True
-
-				else:
-
-					# ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, let's
-					# lie to our parser here, claiming there is nothing
-					self.exists = False
-					self.gets_modified = True  # and make a note to properly mark it in case the user makes a dry run
-					if args.overwrite_doc_only:
-						# if we only want to overwrite the document file itself, but keep everything else,
-						# we simply switch out the render function of this node to a simple document copy
-						# might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
-						self.render = lambda prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
+				# if it's a folder or if we do not intend to overwrite anything, simply mark the node as existing;
+				# if it's a document and we don't overwrite, but also don't want to skip, the first if-branch handles
+				# this already, so here we only have to care about overwrites and implicitly skip everything that's
+				# already there
+				self.exists = True
 
 			else:
-				# acutally nothing in our targeted location in the document tree, just proceed creating a new node
-				self.id = gen_did()
+
+				# ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
+				# lie to our parser here, claiming there is nothing
 				self.exists = False
+				self.gets_modified = True  # and make a note to properly mark it in case of a dry run
+				if args.overwrite_doc_only:
+					# if we only want to overwrite the document file itself, but keep everything else,
+					# we simply switch out the render function of this node to a simple document copy
+					# might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
+					self.render = lambda prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
 
 		else:
-			# ok, multiple candidates under that name, first we need to filter by location, that is parent
-			candidates = 0
-			for did, md in metadata:
-				location_match = (self.parent is None and md['parent'] == '') or (self.parent.id == md['parent'])  # (is root node) or (has matching parent)
-				type_match = self.doctype == md['type']
-
-				if location_match and type_match:
-					# we got the right node (or at least one of them)
-					self.id = did
-					self.exists = True
-					candidates += 1
-
-
-			if candidates == 0:
-				# nothing in our targeted location in the document tree, just proceed creating a new node
-				self.id = gen_did()
-				self.exists = False
-
-			# elif candidates == 1: implicitly handled above, nothing to worry about
-
-			elif candidates > 1:
-				# ok, something is still ambiguous, error out on anything we cannot deal with
-				if self.doctype == 'CollectionType' or args.overwrite:
-					destination_name = self.parent.name if self.parent is not None else 'toplevel'
-					msg = f"File or folder {self.name} occurs multiple times in destination {destination_name}. Situation ambiguous, cannot decide how to proceed."
-					print(msg, file=sys.stderr)
-					sys.exit(1)
+			# ok, something is still ambiguous
+			# at this point in the code we don't want to simply ignore existing files, that'd be the first if-branch,
+			# and everything else requires that we can pinpoint a specific file (even skipping requires that we know
+			# what we want to skip, if there are two, is it one of those or actually an entirely different file?)
+			# hence, we error out here as currently the risk of breaking something is too great at this point
+			destination_name = self.parent.name if self.parent is not None else 'toplevel'
+			msg = f"File or folder {self.name} occurs multiple times in destination {destination_name}. Situation ambiguous, cannot decide how to proceed."
+			print(msg, file=sys.stderr)
+			sys.exit(1)
 
 
 		for ch in self.children:
@@ -365,18 +351,18 @@ if anchor is None:
 	for doc in args.documents:
 		root.append(construct_node_tree(doc))
 
-	for r in root:
-		r.sync_ids()
-
-	for r in root:
-		r.render(args.prepdir)
-
 else:
 	for doc in args.documents:
 		anchor.add_child(construct_node_tree(doc))
 
-	# we'll only ever have one root if we specified an output dir
-	root.sync_ids()
+	# make it into a 1-element list to streamline code further down
+	root = [root]
+
+
+# now synchronize the document tree
+for r in root:
+	r.sync_ids()
+
 
 if args.dryrun:
 
@@ -408,12 +394,14 @@ if args.dryrun:
 
 elif args.debug:
 
-	root.render(args.prepdir)
+	for r in root:
+		r.render(args.prepdir)
 	print(f' --> Payload data can be found in {args.prepdir}')
 
 else:
 
-	root.render(args.prepdir)
+	for r in root:
+		r.render(args.prepdir)
 
 	subprocess.call(f'scp -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
 	subprocess.call(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} systemctl restart xochitl', shell=True)
