@@ -4,6 +4,7 @@ This is a tool that provides easy direct transfer of documents to a [reMarkable]
 
 *This software is not endorsed by reMarkable AS nor are any guarantees provided regarding suitability and correct functionality, use at your own risk.*
 
+Currently tested with software version 2.9.1.217.
 
 ## Usage
 
