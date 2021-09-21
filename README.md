@@ -21,6 +21,7 @@ It also provides a number of flags to select the destination folder, to skip alr
 Files are identified by their visible name and their parent folder, if this is not unambiguously possible, resync.py will error out.
 By default all files will be copied anew to the remarkable (unless for example `-s` is specified). Folders are never recreated, they are only created if they don't already exist.
 
+For the full set of options, refer to `resync.py --help`:
 
 	usage: resync.py [-h] [-o <folder>] [-r <IP or hostname>] [--transfer-dir <directory name>] [--dry-run] [-s] [--overwrite] [--overwrite_doc_only] [--debug] [documents ...]
 	
@@ -59,6 +60,12 @@ If you want to test this script without the risk of messing up your documents, y
 `reclean.py` also searches for orphaned documents, i.e. documents that are missing their metadata and are, as a consequence never picked up by the reMarkable UI (and they don't have a deleted flag either, as this would be noted in said metadata). Those files are cleaned up as well, if the user desires.
 
 ### Usage
+
+Basic usage:
+
+    reclean.py
+
+For the full set of options, refer to `reclean.py --help`:
 
 	usage: reclean.py [-h] [-r <IP or hostname>] [--dry-run]
 	
