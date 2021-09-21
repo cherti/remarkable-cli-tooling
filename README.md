@@ -1,16 +1,21 @@
-# resync.py
+# remarkable-tooling
 
-This is a tool that provides easy direct transfer of documents to a [reMarkable](https://remarkable.com) by commandline over ssh via a USB-connection, no internet required.
+This repository provides a couple of tools that provide easy direct interaction with a [reMarkable paper tablet](https://remarkable.com) via the shell.
+It doesn't require internet, the cloud or a remarkable account, it just works over ssh via a USB-cable connection (or local Wifi, if configured and enabled).
 
 *This software is not endorsed by reMarkable AS nor are any guarantees provided regarding suitability and correct functionality, use at your own risk.*
 
-Currently tested with software version 2.9.1.217.
+All scripts are currently tested with software version 2.9.1.217.
 
-## Usage
+## resync.py
+
+`resync.py` provides easy direct transfer of documents and folders of documents to a reMarkable.
+
+### Usage
 
 Basic usage:
 
-    repush.py document1.pdf another_document.epub folder_with_documents ...
+    resync.py document1.pdf another_document.epub folder_with_documents ...
 
 It also provides a number of flags to select the destination folder, to skip already existing files or to overwrite them.
 Files are identified by their visible name and their parent folder, if this is not unambiguously possible, resync.py will error out.
@@ -41,15 +46,37 @@ By default all files will be copied anew to the remarkable (unless for example `
 If you want to test this script without the risk of messing up your documents, you can make a backup of the folder `~/.local/share/remarkable/xochitl` on the remarkable to restore if anything goes wrong.
 
 
-## Prequisites
+### Prequisites
 
   * Python 3.6+
   * Functioning ssh-access to the device
   * optional: Python's `termcolor`-module to add color to the dry-run output
+
+## reclean.py
+
+`reclean.py` will clean up deleted files on your remarkable, i.e. files that are gone from trash by emptying it. Due to the reMarkable typically needing to sync this action with the reMarkable cloud, these files only actually get deleted after their deletion has been synced to the cloud. If no reMarkable account is configured, this is never, hence they indefinitely stay on the device. `reclean.py` cleans those.
+
+`reclean.py` also searches for orphaned documents, i.e. documents that are missing their metadata and are, as a consequence never picked up by the reMarkable UI (and they don't have a deleted flag either, as this would be noted in said metadata). Those files are cleaned up as well, if the user desires.
+
+### Usage
+
+	usage: reclean.py [-h] [-r <IP or hostname>] [--dry-run]
+	
+	Clean deleted files from your reMarkable
+	
+	optional arguments:
+	  -h, --help            show this help message and exit
+	  -r <IP or hostname>, --remote-address <IP or hostname>
+	                        remote address of the reMarkable
+	  --dry-run             Don't actually clean files, just show what would be done
+
+### Prequisites
+  * Python 3.6+
+  * Functioning ssh-access to the device
 
 Nothing needs to be installed on the remarkable.
 
 
 ## Credits
 
-This script is inspired by [repush.sh](https://github.com/reHackable/scripts/blob/master/host/repush.sh), but provides a superset of its features.
+These scripts are inspired by [repush.sh](https://github.com/reHackable/scripts).
