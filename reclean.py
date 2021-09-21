@@ -58,7 +58,7 @@ if len(deleted_uuids) == 0:
 	print('No deleted files found.')
 else:
 
-	input(f'Clean up {len(deleted_uuids)} deleted files? [Y/n]')
+	decision = input(f'Clean up {len(deleted_uuids)} deleted files? [Y/n]')
 	if decision in ['', 'y', 'Y']:
 		for u in deleted_uuids:
 			cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "rm -r ~/.local/share/remarkable/xochitl/{u}*"'
