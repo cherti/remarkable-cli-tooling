@@ -10,6 +10,7 @@ import uuid
 import subprocess
 import tempfile
 import pathlib
+import urllib.request
 from copy import deepcopy
 
 default_prepdir = tempfile.mkdtemp()
@@ -25,6 +26,7 @@ parser.add_argument('-s', '--skip-existing-files', dest='skip_existing_files', a
 parser.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
 parser.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
 parser.add_argument('--debug', dest='debug', action='store_true', default=False, help="Render documents, but don't copy to remarkable.")
+parser.add_argument('mode', metavar='mode', type=str, help='push or pull')
 parser.add_argument('documents', metavar='documents', type=str, nargs='*', help='Documents and folders to be pushed to the reMarkable')
 
 args = parser.parse_args()
@@ -143,8 +145,8 @@ def get_metadata_by_visibleName(name):
 
 class Node:
 
-	def __init__(self, name, parent=None, filetype=None, document=None):
-		validate_filetype(filetype)
+	def __init__(self, name, parent=None, filetype=None, document=None, did=None):
+		#validate_filetype(filetype)
 
 		self.name = name
 		self.filetype = filetype
@@ -157,7 +159,7 @@ class Node:
 			else:
 				raise TypeError("No document provided for file node " + name)
 
-		self.id = None
+		self.id = did
 		self.exists = False
 		self.gets_modified = False
 
@@ -170,73 +172,74 @@ class Node:
 		self.children.append(node)
 
 
-	def sync_ids(self):
+	def sync_ids(self, overwrite=False, skip_existing=False):
 		"""
 		walks the document tree we constructed and retrieves the document IDs for everything
 		that already exists on the remarkable;
 		it also assigns ids based on our desired outcome, i.e. uploading everything, keeping things synced or overwriting
 		"""
-		metadata = get_metadata_by_visibleName(self.name)
+		if self.id is None:
+			metadata = get_metadata_by_visibleName(self.name)
 
-		# first, we filter the metadata we got for those that are actually in the same location
-		# in the document tree that this node is, i.e. same parent and same document type
-		filtered_metadata = []
-		for (did, md) in metadata:
-			location_match = (self.parent is None and md['parent'] == '') or (self.parent.id == md['parent'])  # (is root node) or (has matching parent)
-			type_match = self.doctype == md['type']
-			if location_match and type_match:
-				# only keep metadata at the same location in the filesystem tree
-				filtered_metadata.append((did, md))
+			# first, we filter the metadata we got for those that are actually in the same location
+			# in the document tree that this node is, i.e. same parent and same document type
+			filtered_metadata = []
+			for (did, md) in metadata:
+				location_match = (self.parent is None and md['parent'] == '') or (self.parent.id == md['parent'])  # (is root node) or (has matching parent)
+				type_match = self.doctype == md['type']
+				if location_match and type_match:
+					# only keep metadata at the same location in the filesystem tree
+					filtered_metadata.append((did, md))
 
-		metadata = filtered_metadata
+			metadata = filtered_metadata
 
 
-		if len(metadata) == 0 or (self.doctype == 'DocumentType' and not args.overwrite and not args.skip_existing_files):
-			# nonexistent or we don't care about existing documents (latter for files only)
-			self.id = gen_did()
-			self.exists = False
+			if len(metadata) == 0 or (self.doctype == 'DocumentType' and not overwrite and not skip_existing):
+				# nonexistent or we don't care about existing documents (latter for files only)
+				self.id = gen_did()
+				self.exists = False
 
-		elif len(metadata) == 1:
+			elif len(metadata) == 1:
 
-			# ok, we have a document already in place at this node_point that fits the position in the document tree
-			# first, get unpack its metadata and assign the document id
-			did, md = metadata[0]
-			self.id = did
+				# ok, we have a document already in place at this node_point that fits the position in the document tree
+				# first, get unpack its metadata and assign the document id
+				did, md = metadata[0]
+				self.id = did
 
-			if self.doctype == 'CollectionType' or not args.overwrite:
+				if self.doctype == 'CollectionType' or not overwrite:
 
-				# if it's a folder or if we do not intend to overwrite anything, simply mark the node as existing;
-				# if it's a document and we don't overwrite, but also don't want to skip, the first if-branch handles
-				# this already, so here we only have to care about overwrites and implicitly skip everything that's
-				# already there
-				self.exists = True
+					# if it's a folder or if we do not intend to overwrite anything, simply mark the node as existing;
+					# if it's a document and we don't overwrite, but also don't want to skip, the first if-branch handles
+					# this already, so here we only have to care about overwrites and implicitly skip everything that's
+					# already there
+					self.exists = True
+
+				else:
+
+					# ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
+					# lie to our parser here, claiming there is nothing
+					self.exists = False
+					self.gets_modified = True  # and make a note to properly mark it in case of a dry run
+					if args.overwrite_doc_only:
+						# if we only want to overwrite the document file itself, but keep everything else,
+						# we simply switch out the render function of this node to a simple document copy
+						# might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
+						self.render = lambda prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
 
 			else:
-
-				# ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
-				# lie to our parser here, claiming there is nothing
-				self.exists = False
-				self.gets_modified = True  # and make a note to properly mark it in case of a dry run
-				if args.overwrite_doc_only:
-					# if we only want to overwrite the document file itself, but keep everything else,
-					# we simply switch out the render function of this node to a simple document copy
-					# might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
-					self.render = lambda prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
-
-		else:
-			# ok, something is still ambiguous
-			# at this point in the code we don't want to simply ignore existing files, that'd be the first if-branch,
-			# and everything else requires that we can pinpoint a specific file (even skipping requires that we know
-			# what we want to skip, if there are two, is it one of those or actually an entirely different file?)
-			# hence, we error out here as currently the risk of breaking something is too great at this point
-			destination_name = self.parent.name if self.parent is not None else 'toplevel'
-			msg = f"File or folder {self.name} occurs multiple times in destination {destination_name}. Situation ambiguous, cannot decide how to proceed."
-			print(msg, file=sys.stderr)
-			sys.exit(1)
+				# ok, something is still ambiguous
+				# at this point in the code we don't want to simply ignore existing files, that'd be the first if-branch,
+				# and everything else requires that we can pinpoint a specific file (even skipping requires that we know
+				# what we want to skip, if there are two, is it one of those or actually an entirely different file?)
+				# hence, we error out here as currently the risk of breaking something is too great at this point
+				destination_name = self.parent.name if self.parent is not None else 'toplevel'
+				msg = f"File or folder {self.name} occurs multiple times in destination {destination_name}. Situation ambiguous, cannot decide how to proceed."
+				print(msg, file=sys.stderr)
+				sys.exit(1)
 
 
 		for ch in self.children:
-			ch.sync_ids()
+			ch.sync_ids(overwrite=overwrite, skip_existing=skip_existing)
 
 
 	def render_common(self, prepdir):
@@ -263,15 +266,59 @@ class Node:
 		raise Exception("Rendering not implemented")
 
 
+	def build_downwards(self):
+		if self.filetype != 'folder':
+			# document don't have children
+			return
+
+		if self.id is None:
+			# shouldn't happen, just a precaution
+			self.sync_ids()
+
+
+		cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"'
+		children_uuids = set([pathlib.Path(d).stem for d in subprocess.getoutput(cmd).split('\n')])
+
+		for chu in children_uuids:
+			md = get_metadata_by_uuid(chu)
+			if md['type'] == "CollectionType":
+				ch = Folder(md['visibleName'], parent=self)
+			else:
+
+				name = md['visibleName']
+
+				if not name.endswith('.pdf'):
+					name += '.pdf'
+
+				ch = Document(name, parent=self)
+
+			ch.id = chu
+			self.add_child(ch)
+			ch.build_downwards()
+
+	def download(self, targetdir=pathlib.Path.cwd()):
+		os.chdir(targetdir)
+		if self.filetype == 'folder':
+			os.makedirs(self.name, exist_ok=True)
+			for ch in self.children:
+				ch.download(targetdir/self.name)
+		else:
+			# download here
+			resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
+			filename = self.name if self.name.lower().endswith('.pdf') else f'{self.name}.pdf'
+			with open(filename, 'wb') as f:
+				f.write(resp.read())
+
+
 
 class Document(Node):
 
-	def __init__(self, document, parent=None):
+	def __init__(self, document, parent=None, did=None):
 
 		docpath = pathlib.Path(document)
 		filetype = docpath.suffix[1:] if docpath.suffix.startswith('.') else docpath.suffix
 
-		super().__init__(docpath.name, parent=parent, filetype=filetype, document=docpath)
+		super().__init__(docpath.name, parent=parent, filetype=filetype, document=docpath, did=did)
 
 
 	def render(self, prepdir):
@@ -289,8 +336,8 @@ class Document(Node):
 
 class Folder(Node):
 
-	def __init__(self, name, parent=None, document=None):
-		super().__init__(name, parent=parent, filetype='folder')
+	def __init__(self, name, parent=None, did=None):
+		super().__init__(name, parent=parent, filetype='folder', did=did)
 
 
 	def render(self, prepdir):
@@ -305,114 +352,176 @@ class Folder(Node):
 			ch.render(prepdir)
 
 
+def identify_node(name, parent=None):
+	metadata = get_metadata_by_visibleName(name)
+	candidates = []
 
-############################
-#
-#   actual syncing logic
-#
-############################
+	if parent is not None and parent.id is None:
+		parent.sync_ids()
 
+	for u, md in metadata:
+		location_match = (parent is None and md['parent'] == '') or (parent.id == md['parent'])  # (is root node) or (has matching parent)
+		if location_match:
+			candidates.append((u, md))
 
-# first, assemble the given output directory (-o) where everything shall be sorted into
-# into our document tree representation
-
-root   = None  # the overall root node
-anchor = None  # the anchor to which we append new documents
-
-if args.output_destination:
-	folders = args.output_destination.split('/')
-	root = anchor = Folder(folders[0])
-
-	for folder in folders[1:]:
-		ch = Folder(folder)
-		anchor.add_child(ch)
-		anchor = ch
-
-def construct_node_tree(basepath, parent=None):
-	"""
-	this recursively constructs the document tree based on the top-level
-	document/folder data structure on disk that we put in initially
-	"""
-	path = pathlib.Path(basepath)
-	if path.is_dir():
-		node = Folder(path.name, parent=parent)
-		for f in os.listdir(path):
-			child = construct_node_tree(path/f, parent=node)
-			node.add_child(child)
-
-	elif path.is_file() and path.suffix.lower() in ['.pdf', '.epub']:
-		node = Document(path)
-
-	return node
-
-# then add the actual folders/documents to the tree at the anchor point
-if anchor is None:
-	root = []
-	for doc in args.documents:
-		root.append(construct_node_tree(doc))
-
-else:
-	for doc in args.documents:
-		anchor.add_child(construct_node_tree(doc))
-
-	# make it into a 1-element list to streamline code further down
-	root = [root]
-
-
-# now synchronize the document tree
-for r in root:
-	r.sync_ids()
-
-
-if args.dryrun:
-
-	try:
-		from termcolor import colored
-	except ImportError:
-		colored = lambda s, c: s
-
-	# just print a filesystem tree for the remarkable representation of what we are going to create
-	def print_tree(node, padding):
-		"""
-		prints a filesystem representation of the constructed document tree,
-		including a note if the according node already exists on the remarkable or not
-		"""
-		if node.gets_modified:
-			note = colored("| !!! gets modified !!!", 'red')
-		elif node.exists:
-			note = colored("| exists already", 'green')
+		if len(candidates) == 1:
+			u, md = candidates[0]
+			return Document(name, parent=parent, did=u) if md['type'] == 'DocumentType' else Folder(name, parent=parent, did=u)
 		else:
-			note = ""
-
-		print(padding, node.name, note)
-
-		for ch in node.children:
-			print_tree(ch, padding+"    ")
+			return None
 
 
-	if type(root) == list:
+
+
+
+###############################
+#
+#   actual application logic
+#
+###############################
+
+
+def push_to_remarkable(documents, destination=None):
+	"""
+	push a list of documents to the reMarkable
+	destination: location on the device
+	"""
+
+	def construct_node_tree_from_disk(basepath, parent=None):
+		"""
+		this recursively constructs the document tree based on the top-level
+		document/folder data structure on disk that we put in initially
+		"""
+		path = pathlib.Path(basepath)
+		if path.is_dir():
+			node = Folder(path.name, parent=parent)
+			for f in os.listdir(path):
+				child = construct_node_tree_from_disk(path/f, parent=node)
+				node.add_child(child)
+
+		elif path.is_file() and path.suffix.lower() in ['.pdf', '.epub']:
+			node = Document(path)
+
+		return node
+
+
+	# first, assemble the given output directory (-o) where everything shall be sorted into
+	# into our document tree representation
+
+	root   = None  # the overall root node
+	anchor = None  # the anchor to which we append new documents
+
+	if destination:
+		folders = destination.split('/')
+		root = anchor = Folder(folders[0])
+
+		for folder in folders[1:]:
+			ch = Folder(folder)
+			anchor.add_child(ch)
+			anchor = ch
+
+
+	# then add the actual folders/documents to the tree at the anchor point
+	if anchor is None:
+		root = []
+		for doc in documents:
+			root.append(construct_node_tree_from_disk(doc))
+
+	else:
+		for doc in documents:
+			anchor.add_child(construct_node_tree_from_disk(doc))
+
+		# make it into a 1-element list to streamline code further down
+		root = [root]
+
+
+	# now synchronize the document tree
+	for r in root:
+		r.sync_ids(overwrite=args.overwrite, skip_existing=args.skip_existing_files)
+
+
+	if args.dryrun:
+		# just print out the assembled document tree with appropriate actions
+
+		try:
+			from termcolor import colored
+		except ImportError:
+			colored = lambda s, c: s
+
+		# just print a filesystem tree for the remarkable representation of what we are going to create
+		def print_tree(node, padding):
+			"""
+			prints a filesystem representation of the constructed document tree,
+			including a note if the according node already exists on the remarkable or not
+			"""
+			if node.gets_modified:
+				note = colored("| !!! gets modified !!!", 'red')
+			elif node.exists:
+				note = colored("| exists already", 'green')
+			else:
+				note = ""
+
+			print(padding, node.name, note)
+
+			for ch in node.children:
+				print_tree(ch, padding+"    ")
+
 		for r in root:
 			print_tree(r, "")
 			print()
-	else:
-		print_tree(root, "")
 
-elif args.debug:
+	elif args.debug:
 
-	for r in root:
-		r.render(args.prepdir)
-	print(f' --> Payload data can be found in {args.prepdir}')
+		for r in root:
+			r.render(args.prepdir)
+		print(f' --> Payload data can be found in {args.prepdir}')
 
+	else:  # actually upload to the reMarkable
+
+		for r in root:
+			r.render(args.prepdir)
+
+		subprocess.call(f'scp -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
+		subprocess.call(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} systemctl restart xochitl', shell=True)
+
+		if args.prepdir == default_prepdir:  # aka we created it
+			shutil.rmtree(args.prepdir)
+
+
+def pull_from_remarkable(documents, destination=None):
+	destination_directory = pathlib.Path(destination).absolute() if destination is not None else pathlib.Path.cwd()
+
+	anchors = []
+	for doc in documents:
+		*parents, target = doc.split('/')
+		local_anchor = None
+		if parents:
+			local_anchor = Folder(parents[0], parent=None)
+			for par in parents[1:]:
+
+				new_node = Folder(par, parent=local_anchor)
+				local_anchor.add_child(new_node)
+				local_anchor = new_node
+
+		new_node = identify_node(target, parent=local_anchor)
+		if new_node is not None:
+			anchors.append(new_node)
+		else:
+			print(f"Cannot find {doc}, skipping")
+
+	for a in anchors:
+		a.sync_ids()
+		a.build_downwards()
+		a.download(targetdir=destination_directory)
+
+
+if args.mode == 'push':
+	push_to_remarkable(args.documents, destination=args.output_destination)
+elif args.mode == 'pull':
+	pull_from_remarkable(args.documents, destination=args.output_destination)
 else:
+	print("Unknown mode, doing nothing.")
 
-	for r in root:
-		r.render(args.prepdir)
-
-	subprocess.call(f'scp -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
-	subprocess.call(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} systemctl restart xochitl', shell=True)
-
-	if args.prepdir == default_prepdir:  # aka we created it
-		shutil.rmtree(args.prepdir)
 
 ssh_connection.terminate()
 #os.remove(ssh_socketfile)
