@@ -9,38 +9,52 @@ All scripts are currently tested with software version 2.9.1.217.
 
 ## resync.py
 
-`resync.py` provides easy direct transfer of documents and folders of documents to a reMarkable.
+`resync.py` provides easy direct transfer of documents and folders of documents to a reMarkable and pull documents from it again.
+It includes the possibility to synchronize entire filesystem trees between devices (with the limitation of, if desired, skipping or replacing either all files or none).
+By default, files will, however, simply be added to the document tree, even if they exist.
 
 ### Usage
 
 Basic usage:
+To push documents to the remarkable, use
 
-    resync.py document1.pdf another_document.epub folder_with_documents ...
+    resync.py push document1.pdf another_document.epub folder_with_documents ...
 
-It also provides a number of flags to select the destination folder, to skip already existing files or to overwrite them.
+To retrieve documents from the remarkable, use
+
+    resync.py pull document1.pdf some_folder/another_document folder_with_documents ...
+
+To pull documents or folders, the full path from the top level has to be provided.
+
+`resync.py` also provides a number of flags to select the destination folder, to skip already existing files or to overwrite them.
+If in doubt, especially when pushing, use `--dry-run` to see what's going to happen beforehand.
+
 Files are identified by their visible name and their parent folder, if this is not unambiguously possible, resync.py will error out.
 By default all files will be copied anew to the remarkable (unless for example `-s` is specified). Folders are never recreated, they are only created if they don't already exist.
 
 For the full set of options, refer to `resync.py --help`:
 
-	usage: resync.py [-h] [-o <folder>] [-r <IP or hostname>] [--transfer-dir <directory name>] [--dry-run] [-s] [--overwrite] [--overwrite_doc_only] [--debug] [documents ...]
-	
-	Push files to your reMarkable
-	
+	usage: resync.py [-h] [--dry-run] [-o <folder>] [-s] [--overwrite] [--overwrite_doc_only] [-r <IP or hostname>] [--transfer-dir <directory name>] [--debug] mode [documents ...]
+
+	Push and pull files to and from your reMarkable
+
 	positional arguments:
-	  documents
-	
+	  mode                  push or pull
+	  documents             Documents and folders to be pushed to the reMarkable
+
 	optional arguments:
 	  -h, --help            show this help message and exit
-	  -o <folder>, --output <folder>
-	  -r <IP or hostname>, --remote-address <IP or hostname>
-	                        remote address of the reMarkable
-	  --transfer-dir <directory name>
 	  --dry-run             Don't actually copy files, just show what would be copied
+	  -o <folder>, --output <folder>
+							Destination for copied files, either on or off device
 	  -s, --skip-existing-files
-	                        Don't copy additional versions of existing files
+							Don't copy additional versions of existing files
 	  --overwrite           Overwrite existing files with a new version (potentially destructive)
 	  --overwrite_doc_only  Overwrite the underlying file only, keep notes and such (potentially destructive)
+	  -r <IP or hostname>, --remote-address <IP or hostname>
+							remote address of the reMarkable
+	  --transfer-dir <directory name>
+							custom directory to render files to-be-upload
 	  --debug               Render documents, but don't copy to remarkable.
 
 
@@ -55,7 +69,7 @@ If you want to test this script without the risk of messing up your documents, y
 
 ## reclean.py
 
-`reclean.py` will clean up deleted files on your remarkable, i.e. files that are gone from trash by emptying it. Due to the reMarkable typically needing to sync this action with the reMarkable cloud, these files only actually get deleted after their deletion has been synced to the cloud. If no reMarkable account is configured, this is never, hence they indefinitely stay on the device. `reclean.py` cleans those.
+`reclean.py` will clean up deleted files on your remarkable, i.e. files that are gone from trash by emptying it. Due to the reMarkable typically needing to sync this action with the reMarkable cloud, these files only actually get deleted after their deletion has been synced to the cloud. If no reMarkable account is configured, this is never, hence they indefinitely stay on the device. `reclean.py` takes that place, cleaning up those leftovers to free the space on the remarkable again.
 
 `reclean.py` also searches for orphaned documents, i.e. documents that are missing their metadata and are, as a consequence never picked up by the reMarkable UI (and they don't have a deleted flag either, as this would be noted in said metadata). Those files are cleaned up as well, if the user desires.
 
