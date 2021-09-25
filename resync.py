@@ -19,11 +19,13 @@ ssh_socketfile = '/tmp/remarkable-push.socket'
 
 parser = argparse.ArgumentParser(description='Push and pull files to and from your reMarkable')
 
-parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=False, help="Don't actually copy files, just show what would be copied")
+parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=False, help="Don't actually copy files, just show what would be copied (currently push only)")
 parser.add_argument('-o', '--output', action='store', default=None, dest='output_destination', metavar='<folder>', help='Destination for copied files, either on or off device')
-parser.add_argument('-s', '--skip-existing-files', dest='skip_existing_files', action='store_true', default=False, help="Don't copy additional versions of existing files")
-parser.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
-parser.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
+
+existing_files_handling = parser.add_mutually_exclusive_group()
+existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_existing_files', action='store_true', default=False, help="Don't copy additional versions of existing files")
+existing_files_handling.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
+existing_files_handling.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
 
 parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>', help='remote address of the reMarkable')
 parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir, help='custom directory to render files to-be-upload')
