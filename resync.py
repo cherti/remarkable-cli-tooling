@@ -377,12 +377,11 @@ def identify_node(name, parent=None):
 		if location_match:
 			candidates.append((u, md))
 
-		if len(candidates) == 1:
-			u, md = candidates[0]
-			return Document(name, parent=parent) if md['type'] == 'DocumentType' else Folder(name, parent=parent)
-		else:
-			return None
-
+	if len(candidates) == 1:
+		u, md = candidates[0]
+		return Document(name, parent=parent) if md['type'] == 'DocumentType' else Folder(name, parent=parent)
+	else:
+		return None
 
 
 ###############################
