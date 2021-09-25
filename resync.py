@@ -191,6 +191,10 @@ class Node:
 			sys.exit(1)
 
 
+	def __repr__(self):
+		return self.get_full_path()
+
+
 	def add_child(self, node):
 		"""
 		add a child to this Node and make sure it has a parent set
@@ -199,6 +203,13 @@ class Node:
 			raise ShouldNeverHappenError("Child was added without having a parent set.")
 
 		self.children.append(node)
+
+
+	def get_full_path(self):
+		if self.parent is None:
+			return self.name
+		else:
+			return self.parent.get_full_path() + '/' + self.name
 
 
 	def render_common(self, prepdir):
