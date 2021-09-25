@@ -28,7 +28,7 @@ existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_e
 existing_files_handling.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
 existing_files_handling.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
 
-parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', nargs='+', type=str, help='exclude a pattern from transfer')
+parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', nargs='+', type=str, help='exclude a pattern from transfer (must be Python-regex)')
 
 parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>', help='remote address of the reMarkable')
 parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir, help='custom directory to render files to-be-upload')
