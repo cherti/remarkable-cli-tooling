@@ -29,7 +29,7 @@ existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_e
 existing_files_handling.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
 existing_files_handling.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
 
-parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', nargs='+', type=str, help='exclude a pattern from transfer (must be Python-regex)')
+parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', type=str, help='exclude a pattern from transfer (must be Python-regex)')
 
 parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>', help='remote address of the reMarkable')
 parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir, help='custom directory to render files to-be-upload')
@@ -39,9 +39,6 @@ parser.add_argument('mode', metavar='mode', type=str, help='push or pull')
 parser.add_argument('documents', metavar='documents', type=str, nargs='*', help='Documents and folders to be pushed to the reMarkable')
 
 args = parser.parse_args()
-
-# set an empty list explicitly or unpack the list-of-lists
-args.exclude_patterns = [] if args.exclude_patterns is None else [exc for excl in args.exclude_patterns for exc in excl]
 
 if args.overwrite_doc_only:
 	args.overwrite = True
