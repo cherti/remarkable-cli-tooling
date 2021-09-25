@@ -1,4 +1,4 @@
-# remarkable-tooling
+# remarkable CLI tooling
 
 This repository provides a couple of tools that provide easy direct interaction with a [reMarkable paper tablet](https://remarkable.com) via the shell.
 It doesn't require internet, the cloud or a remarkable account, it just works over ssh via a USB-cable connection (or local Wifi, if configured and enabled).
@@ -34,7 +34,9 @@ By default all files will be copied anew to the remarkable (unless for example `
 
 For the full set of options, refer to `resync.py --help`:
 
-	usage: resync.py [-h] [--dry-run] [-o <folder>] [-s] [--overwrite] [--overwrite_doc_only] [-r <IP or hostname>] [--transfer-dir <directory name>] [--debug] mode [documents ...]
+	usage: resync.py [-h] [--dry-run] [-o <folder>] [-s | --overwrite | --overwrite_doc_only] [-e EXCLUDE_PATTERNS [EXCLUDE_PATTERNS ...]] [-r <IP or hostname>]
+					 [--transfer-dir <directory name>] [--debug]
+					 mode [documents ...]
 
 	Push and pull files to and from your reMarkable
 
@@ -44,19 +46,20 @@ For the full set of options, refer to `resync.py --help`:
 
 	optional arguments:
 	  -h, --help            show this help message and exit
-	  --dry-run             Don't actually copy files, just show what would be copied
+	  --dry-run             Don't actually copy files, just show what would be copied (currently push only)
 	  -o <folder>, --output <folder>
 							Destination for copied files, either on or off device
 	  -s, --skip-existing-files
 							Don't copy additional versions of existing files
 	  --overwrite           Overwrite existing files with a new version (potentially destructive)
 	  --overwrite_doc_only  Overwrite the underlying file only, keep notes and such (potentially destructive)
+	  -e EXCLUDE_PATTERNS [EXCLUDE_PATTERNS ...], --exclude EXCLUDE_PATTERNS [EXCLUDE_PATTERNS ...]
+							exclude a pattern from transfer (must be Python-regex)
 	  -r <IP or hostname>, --remote-address <IP or hostname>
 							remote address of the reMarkable
 	  --transfer-dir <directory name>
 							custom directory to render files to-be-upload
 	  --debug               Render documents, but don't copy to remarkable.
-
 
 If you want to test this script without the risk of messing up your documents, you can make a backup of the folder `~/.local/share/remarkable/xochitl` on the remarkable to restore if anything goes wrong.
 
@@ -100,4 +103,4 @@ Nothing needs to be installed on the remarkable.
 
 ## Credits
 
-These scripts are inspired by [repush.sh](https://github.com/reHackable/scripts).
+These scripts are inspired by [reHackable/scripts](https://github.com/reHackable/scripts).
