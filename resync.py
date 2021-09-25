@@ -138,7 +138,6 @@ def get_metadata_by_visibleName(name):
 
 
 def curb_tree(node, excludelist):
-	print(" :: curbing", node.get_full_path(), node.children)
 	"""
 	removes nodes from a tree based on a list of exclude patterns;
 	returns True if the root node is removed, None otherwise as the
@@ -299,18 +298,30 @@ class Node:
 		"""
 		retrieve document node from the remarkable to local system
 		"""
-		os.chdir(targetdir)
-		if self.filetype == 'folder':
-			# folders we simply create ourselves
-			os.makedirs(self.name, exist_ok=True)
-			for ch in self.children:
-				ch.download(targetdir/self.name)
+		if args.dryrun:
+			if self.filetype == 'folder':
+				# folders we simply create ourselves
+				print("creating directory", targetdir/self.name)
+				for ch in self.children:
+					ch.download(targetdir/self.name)
+			else:
+				print("downloading document to", targetdir/self.name)
 		else:
-			# documents we need to actually download
-			resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
-			filename = self.name if self.name.lower().endswith('.pdf') else f'{self.name}.pdf'
-			with open(filename, 'wb') as f:
-				f.write(resp.read())
+			os.chdir(targetdir)
+
+			if self.filetype == 'folder':
+				# folders we simply create ourselves
+				os.makedirs(self.name, exist_ok=True)
+
+				for ch in self.children:
+					ch.download(targetdir/self.name)
+
+			else:
+				# documents we need to actually download
+				filename = self.name if self.name.lower().endswith('.pdf') else f'{self.name}.pdf'
+				resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
+				with open(filename, 'wb') as f:
+					f.write(resp.read())
 
 
 class Document(Node):
