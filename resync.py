@@ -127,7 +127,11 @@ def get_metadata_by_visibleName(name):
 		for result in res.split('\n'):
 
 			# hard pattern matching to provoke a mismatch-exception on the first number mismatch
-			_, _, _, _, filename = result.split('/')
+			try:
+				_, _, _, _, filename = result.split('/')
+			except ValueError:
+				continue
+
 			u, _ = filename.split('.')
 
 			metadata = get_metadata_by_uuid(u)
