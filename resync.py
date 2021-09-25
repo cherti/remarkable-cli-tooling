@@ -22,6 +22,7 @@ parser = argparse.ArgumentParser(description='Push and pull files to and from yo
 
 parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=False, help="Don't actually copy files, just show what would be copied (currently push only)")
 parser.add_argument('-o', '--output', action='store', default=None, dest='output_destination', metavar='<folder>', help='Destination for copied files, either on or off device')
+parser.add_argument('-v', dest='verbosity', action='count', default=0, help='verbosity level')
 
 existing_files_handling = parser.add_mutually_exclusive_group()
 existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_existing_files', action='store_true', default=False, help="Don't copy additional versions of existing files")
@@ -61,6 +62,11 @@ class ShouldNeverHappenError(Exception):
 #   Helper functions
 #
 #########################
+
+def logmsg(lvl, msg):
+	if lvl >= args.verbosity:
+		print(msg)
+
 
 def gen_did():
 	"""
@@ -149,6 +155,7 @@ def curb_tree(node, excludelist):
 	"""
 	for exc in excludelist:
 		if re.match(exc, node.get_full_path()) is not None:
+			logmsg(2, "curbing "+node.get_full_path())
 			return True
 
 	uncurbed_children = []
@@ -246,6 +253,8 @@ class Node:
 		renders all files that are shared between the different DocumentTypes
 		"""
 
+		logmsg(1, "preparing for upload: " + self.get_full_path())
+
 		if self.id is None:
 			self.id = gen_did()
 
@@ -311,6 +320,8 @@ class Node:
 			else:
 				print("downloading document to", targetdir/self.name)
 		else:
+
+			logmsg(1, "retrieving " + self.get_full_path())
 			os.chdir(targetdir)
 
 			if self.filetype == 'folder':
