@@ -389,6 +389,24 @@ def identify_node(name, parent=None):
 		return None
 
 
+def get_toplevel_files():
+	"""
+	get a list of all documents in the toplevel My files drawer
+	"""
+
+	cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"\\"\' .local/share/remarkable/xochitl/*.metadata"'
+	toplevel_candidates = set([pathlib.Path(d).stem for d in subprocess.getoutput(cmd).split('\n')])
+
+	toplevel_files = []
+	for u in toplevel_candidates:
+		md = get_metadata_by_uuid(u)
+		if md is not None:
+			toplevel_files.append(md['visibleName'])
+
+	return toplevel_files
+
+
+
 ###############################
 #
 #   actual application logic
@@ -564,8 +582,14 @@ if args.mode == 'push':
 	push_to_remarkable(args.documents, destination=args.output_destination, overwrite=args.overwrite, skip_existing=args.skip_existing_files)
 elif args.mode == 'pull':
 	pull_from_remarkable(args.documents, destination=args.output_destination)
+elif args.mode == 'backup':
+	pull_from_remarkable(get_toplevel_files(), destination=args.output_destination)
 else:
 	print("Unknown mode, doing nothing.")
+	print("Available modes are")
+	print("    push:   push documents from this machine to the reMarkable")
+	print("    pull:   pull documents from the reMarkable to this machine")
+	print("    backup: pull all files from the remarkable to this machine (excludes still apply)")
 
 
 ssh_connection.terminate()
