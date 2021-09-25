@@ -377,7 +377,8 @@ def identify_node(name, parent=None):
 	candidates = []
 
 	for u, md in metadata:
-		location_match = (parent is None and md['parent'] == '') or (parent is not None and parent.id == md['parent'])  # (is root node) or (has matching parent)
+		# location_match = (is root node) or (has matching parent)
+		location_match = (parent is None and md['parent'] == '') or (parent is not None and parent.id == md['parent'])
 		if location_match:
 			candidates.append((u, md))
 
