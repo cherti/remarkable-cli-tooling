@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import pathlib
 import urllib.request
+import re
 from copy import deepcopy
 
 default_prepdir = tempfile.mkdtemp()
@@ -27,6 +28,8 @@ existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_e
 existing_files_handling.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
 existing_files_handling.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
 
+parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', nargs='+', type=str, help='exclude a pattern from transfer')
+
 parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>', help='remote address of the reMarkable')
 parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir, help='custom directory to render files to-be-upload')
 parser.add_argument('--debug', dest='debug', action='store_true', default=False, help="Render documents, but don't copy to remarkable.")
@@ -35,6 +38,9 @@ parser.add_argument('mode', metavar='mode', type=str, help='push or pull')
 parser.add_argument('documents', metavar='documents', type=str, nargs='*', help='Documents and folders to be pushed to the reMarkable')
 
 args = parser.parse_args()
+
+# set an empty list explicitly or unpack the list-of-lists
+args.exclude_patterns = [] if args.exclude_patterns is None else [exc for excl in args.exclude_patterns for exc in excl]
 
 if args.overwrite_doc_only:
 	args.overwrite = True
@@ -130,6 +136,26 @@ def get_metadata_by_visibleName(name):
 
 	return reslist
 
+
+def curb_tree(node, excludelist):
+	print(" :: curbing", node.get_full_path(), node.children)
+	"""
+	removes nodes from a tree based on a list of exclude patterns;
+	returns True if the root node is removed, None otherwise as the
+	tree is curbed inplace
+	"""
+	for exc in excludelist:
+		if re.match(exc, node.get_full_path()) is not None:
+			return True
+
+	uncurbed_children = []
+	for ch in node.children:
+		if not curb_tree(ch, excludelist):
+			uncurbed_children.append(ch)
+
+	node.children = uncurbed_children
+
+	return False
 
 
 #################################
@@ -426,10 +452,17 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
 		# make it into a 1-element list to streamline code further down
 		root = [root]
 
+	# apply excludes
+	curbed_roots = []
+	for r in root:
+		if not curb_tree(r, args.exclude_patterns):
+			curbed_roots.append(r)
 
+	root = curbed_roots
 
 
 	if args.dryrun:
+
 		# just print out the assembled document tree with appropriate actions
 
 		try:
@@ -503,8 +536,10 @@ def pull_from_remarkable(documents, destination=None):
 		else:
 			print(f"Cannot find {doc}, skipping")
 
+
 	for a in anchors:
 		a.build_downwards()
+		curb_tree(a, args.exclude_patterns)
 		a.download(targetdir=destination_directory)
 
 
