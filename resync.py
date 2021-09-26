@@ -582,8 +582,8 @@ def pull_from_remarkable(documents, destination=None):
 
 	for a in anchors:
 		a.build_downwards()
-		curb_tree(a, args.exclude_patterns)
-		a.download(targetdir=destination_directory)
+		if not curb_tree(a, args.exclude_patterns):
+			a.download(targetdir=destination_directory)
 
 
 if args.mode == 'push':
