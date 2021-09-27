@@ -43,6 +43,9 @@ args = parser.parse_args()
 if args.overwrite_doc_only:
 	args.overwrite = True
 
+if args.exclude_patterns is None:
+	args.exclude_patters = []
+
 
 ssh_connection = subprocess.Popen(f'ssh -o ConnectTimeout=1 -M -N -q -S {ssh_socketfile} root@{args.ssh_destination}', shell=True)
 
