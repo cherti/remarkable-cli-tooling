@@ -334,9 +334,12 @@ class Node:
 			else:
 				# documents we need to actually download
 				filename = self.name if self.name.lower().endswith('.pdf') else f'{self.name}.pdf'
-				resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
-				with open(filename, 'wb') as f:
-					f.write(resp.read())
+				if os.path.exists(filename) and not args.overwrite:
+					logmsg(0, "File {filename} already exists, skipping (use --overwrite to pull regardless)")
+				else:
+					resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
+					with open(filename, 'wb') as f:
+						f.write(resp.read())
 
 
 class Document(Node):
