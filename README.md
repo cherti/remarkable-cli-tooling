@@ -101,6 +101,38 @@ For the full set of options, refer to `reclean.py --help`:
 Nothing needs to be installed on the remarkable.
 
 
+## resign.py
+
+`resign.py` will transfer documents onto the reMarkable, so you can sign them, and then pulls them again with the signature on it and deletes the document from the reMarkable again.
+It requires `resync.py` to be available, so if you name `resync.py` or put it into a location that is not in `PATH`, you need to adjust the variable at the very top in `resign.py`.
+
+### Usage
+
+Basic usage:
+
+    resign.py document1.pdf [document2.pdf ...]
+
+For the full set of options, refer to `resign.py --help`:
+
+	usage: resign.py [-h] [-r <IP or hostname>] [documents ...]
+	
+	Relay documents over your reMarkable for signing
+	
+	positional arguments:
+	  documents             Documents and folders to be signed
+	
+	optional arguments:
+	  -h, --help            show this help message and exit
+	  -r <IP or hostname>, --remote-address <IP or hostname>
+                        remote address of the reMarkable
+
+### Prequisites
+  * Python 3.6+
+  * Functioning ssh-access to the device
+
+Nothing needs to be installed on the remarkable.
+
+
 ## Credits
 
 These scripts are inspired by [reHackable/scripts](https://github.com/reHackable/scripts).
