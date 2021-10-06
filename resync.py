@@ -20,7 +20,7 @@ ssh_socketfile = '/tmp/remarkable-push.socket'
 
 parser = argparse.ArgumentParser(description='Push and pull files to and from your reMarkable')
 
-parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=False, help="Don't actually copy files, just show what would be copied (currently push only)")
+parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=False, help="Don't actually copy files, just show what would be copied")
 parser.add_argument('-o', '--output', action='store', default=None, dest='output_destination', metavar='<folder>', help='Destination for copied files, either on or off device')
 parser.add_argument('-v', dest='verbosity', action='count', default=0, help='verbosity level')
 
