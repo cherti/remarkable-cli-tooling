@@ -7,6 +7,12 @@ It doesn't require internet, the cloud or a remarkable account, it just works ov
 
 All scripts are currently tested with software version 2.9.1.217.
 
+## Summary
+
+  * `resync.py`: push documents to or pull documents from the reMarkable
+  * `reclean.py`: cleanup deleted documents on the reMarkable (necessary if the cloud is not used)
+  * `resign.py`: temporarily transfer documents to the reMarkable to put a signature
+
 ## resync.py
 
 `resync.py` provides easy direct transfer of documents and folders of documents to a reMarkable and pull documents from it again.
