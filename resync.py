@@ -64,7 +64,7 @@ class ShouldNeverHappenError(Exception):
 #########################
 
 def logmsg(lvl, msg):
-	if lvl >= args.verbosity:
+	if lvl <= args.verbosity:
 		print(msg)
 
 
