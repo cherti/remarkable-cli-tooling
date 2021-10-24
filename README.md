@@ -74,6 +74,7 @@ If you want to test this script without the risk of messing up your documents, y
 
   * Python 3.6+
   * Functioning ssh-access to the device
+  * for pull: the web-interface must be enabled (Settings > Storage > USB web interface)
   * optional: Python's `termcolor`-module to add color to the dry-run output
 
 ## reclean.py
