@@ -337,9 +337,13 @@ class Node:
 				if os.path.exists(filename) and not args.overwrite:
 					logmsg(0, "File {filename} already exists, skipping (use --overwrite to pull regardless)")
 				else:
-					resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
-					with open(filename, 'wb') as f:
-						f.write(resp.read())
+					try:
+						resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
+						with open(filename, 'wb') as f:
+							f.write(resp.read())
+					except urllib.error.URLError as e:
+						print(f"{e.reason}: Is the web interface enabled? (Settings > Storage > USB web interface)")
+						sys.exit(2)
 
 
 class Document(Node):
