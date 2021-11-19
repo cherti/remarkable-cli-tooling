@@ -35,7 +35,7 @@ parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.
 parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir, help='custom directory to render files to-be-upload')
 parser.add_argument('--debug', dest='debug', action='store_true', default=False, help="Render documents, but don't copy to remarkable.")
 
-parser.add_argument('mode', metavar='mode', type=str, help='push or pull')
+parser.add_argument('mode', metavar='mode', type=str, help='push/+ or pull/-')
 parser.add_argument('documents', metavar='documents', type=str, nargs='*', help='Documents and folders to be pushed to the reMarkable')
 
 args = parser.parse_args()
@@ -45,6 +45,11 @@ if args.overwrite_doc_only:
 
 if args.exclude_patterns is None:
 	args.exclude_patterns = []
+
+if args.mode == '+':
+	args.mode = 'push'
+elif args.mode == '-':
+	args.mode = 'pull'
 
 
 ssh_connection = subprocess.Popen(f'ssh -o ConnectTimeout=1 -M -N -q -S {ssh_socketfile} root@{args.ssh_destination}', shell=True)
