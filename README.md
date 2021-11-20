@@ -12,7 +12,7 @@ All scripts are currently tested with software versions:
 
 ## Summary
 
-  * `resync.py`: push documents to or pull documents from the reMarkable
+  * `resync.py`: push documents to or pull documents from the reMarkable, or to pull everything for backup purposes
   * `reclean.py`: cleanup deleted documents on the reMarkable (necessary if the cloud is not used)
   * `resign.py`: temporarily transfer documents to the reMarkable to put a signature, and pull them again once it's done
 
@@ -35,6 +35,10 @@ To retrieve documents from the remarkable, use one of
     resync.py pull document1.pdf some_folder/another_document folder_with_documents ...
     resync.py - document1.pdf some_folder/another_document folder_with_documents ...
 
+To pull all documents (exclude patterns still apply), use
+
+    resync.py backup
+
 To pull documents or folders, the full path from the top level has to be provided; entire folders can also be pulled.
 
 `resync.py` also provides a number of flags to select the destination folder, to skip already existing files or to overwrite them.
@@ -53,7 +57,7 @@ For the full set of options, refer to `resync.py --help`:
 	Push and pull files to and from your reMarkable
 
 	positional arguments:
-	  mode                  push/+ or pull/-
+	  mode                  push/+, pull/- or backup
 	  documents             Documents and folders to be pushed to the reMarkable
 
 	optional arguments:
