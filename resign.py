@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# set this to your resync-executable
+# set this to your resync-executable (if it's in path, its name should suffice)
 resync_cmd = 'resync.py'
 
 
