@@ -1,17 +1,20 @@
 # remarkable CLI tooling
 
 This repository provides a couple of tools that provide easy direct interaction with a [reMarkable paper tablet](https://remarkable.com) via the shell.
-It doesn't require internet, the cloud or a remarkable account, it just works over ssh via a USB-cable connection (or local Wifi, if configured and enabled).
+It doesn't require internet, the cloud or a remarkable account, it just works over ssh via a USB-cable connection (or local Wifi, if configured and enabled, although [additional steps may be necessary](https://www.reddit.com/r/RemarkableTablet/comments/edozpq/howto_access_the_web_interface_via_ssh/)).
 
 *This software is not endorsed by reMarkable AS nor are any guarantees provided regarding suitability and correct functionality, use at your own risk.*
 
-All scripts are currently tested with software version 2.9.1.217.
+All scripts are currently tested with software versions:
+
+  * 2.9.1.217
+  * 2.10.3.379
 
 ## Summary
 
   * `resync.py`: push documents to or pull documents from the reMarkable
   * `reclean.py`: cleanup deleted documents on the reMarkable (necessary if the cloud is not used)
-  * `resign.py`: temporarily transfer documents to the reMarkable to put a signature
+  * `resign.py`: temporarily transfer documents to the reMarkable to put a signature, and pull them again once it's done
 
 ## resync.py
 
@@ -22,21 +25,24 @@ By default, files will, however, simply be added to the document tree, even if t
 ### Usage
 
 Basic usage:
-To push documents to the remarkable, use
+To push documents to the remarkable, use one of
 
     resync.py push document1.pdf another_document.epub folder_with_documents ...
+    resync.py + document1.pdf another_document.epub folder_with_documents ...
 
-To retrieve documents from the remarkable, use
+To retrieve documents from the remarkable, use one of
 
     resync.py pull document1.pdf some_folder/another_document folder_with_documents ...
+    resync.py - document1.pdf some_folder/another_document folder_with_documents ...
 
-To pull documents or folders, the full path from the top level has to be provided.
+To pull documents or folders, the full path from the top level has to be provided; entire folders can also be pulled.
 
 `resync.py` also provides a number of flags to select the destination folder, to skip already existing files or to overwrite them.
 If in doubt, especially when pushing, use `--dry-run` to see what's going to happen beforehand.
 
 Files are identified by their visible name and their parent folder, if this is not unambiguously possible, resync.py will error out.
-By default all files will be copied anew to the remarkable (unless for example `-s` is specified). Folders are never recreated, they are only created if they don't already exist.
+By default all files will be copied anew to the remarkable, if you copy a file that is already there, you'll have it twice. See for example `-s` below for alternative behaviors.
+Folders are never recreated, they are only created if they don't already exist.
 
 For the full set of options, refer to `resync.py --help`:
 
@@ -47,7 +53,7 @@ For the full set of options, refer to `resync.py --help`:
 	Push and pull files to and from your reMarkable
 
 	positional arguments:
-	  mode                  push or pull
+	  mode                  push/+ or pull/-
 	  documents             Documents and folders to be pushed to the reMarkable
 
 	optional arguments:
