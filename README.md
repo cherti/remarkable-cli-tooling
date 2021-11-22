@@ -85,7 +85,7 @@ If you want to test this script without the risk of messing up your documents, y
 ### Prequisites
 
   * Python 3.6+
-  * Functioning ssh-access to the device
+  * Functioning ssh-access to the device (practically speaking passwordless via SSH keys)
   * for pull: the web-interface must be enabled (Settings > Storage > USB web interface)
   * optional: Python's `termcolor`-module to add color to the dry-run output
 
@@ -115,7 +115,7 @@ For the full set of options, refer to `reclean.py --help`:
 
 ### Prequisites
   * Python 3.6+
-  * Functioning ssh-access to the device
+  * Functioning ssh-access to the device (practically speaking passwordless via SSH keys)
 
 Nothing needs to be installed on the remarkable.
 
@@ -147,7 +147,7 @@ For the full set of options, refer to `resign.py --help`:
 
 ### Prequisites
   * Python 3.6+
-  * Functioning ssh-access to the device
+  * Functioning ssh-access to the device (practically speaking passwordless via SSH keys)
 
 Nothing needs to be installed on the remarkable.
 
