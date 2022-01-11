@@ -9,6 +9,7 @@ All scripts are currently tested with software versions:
 
   * 2.9.1.217
   * 2.10.3.379
+  * 2.11.0.442
 
 and should work under any unixoid operating system, such as Linux, BSD or MacOS/OSX. If you want to use these scripts under Windows, you likely need to resort to the Windows Subsystem for Linux to do so.
 
