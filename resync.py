@@ -293,6 +293,9 @@ class Node:
 
 		cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"'
 		children_uuids = set([pathlib.Path(d).stem for d in subprocess.getoutput(cmd).split('\n')])
+		if '' in children_uuids:
+			# if we get an empty string here, there are no children to this folder
+			return
 
 		for chu in children_uuids:
 			md = get_metadata_by_uuid(chu)
