@@ -19,6 +19,18 @@ args = parser.parse_args()
 
 ssh_connection = subprocess.Popen(f'ssh -o ConnectTimeout=1 -M -N -q -S {ssh_socketfile} root@{args.ssh_destination}', shell=True)
 
+# quickly check if we actually have a functional ssh connection (might not be the case right after an update)
+checkmsg = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "/bin/true"')
+if 'WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!' in checkmsg:
+	print("Host key identification has changed. You might need to update your known_hosts file.")
+	ssh_connection.terminate()
+	sys.exit(255)
+elif checkmsg != "":
+	print("ssh connection does not work, possibly check if you can manually ssh into your reMarkable.")
+	ssh_connection.terminate()
+	sys.exit(255)
+
+
 def get_metadata_by_uuid(u):
 	"""
 	retrieves metadata for a given document identified by its uuid
