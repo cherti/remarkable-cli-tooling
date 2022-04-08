@@ -56,12 +56,9 @@ ssh_connection = subprocess.Popen(f'ssh -o ConnectTimeout=1 -M -N -q -S {ssh_soc
 
 # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
 checkmsg = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "/bin/true"')
-if 'WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!' in checkmsg:
-	print("Host key identification has changed. You might need to update your known_hosts file.")
-	ssh_connection.terminate()
-	sys.exit(255)
-elif checkmsg != "":
-	print("ssh connection does not work, possibly check if you can manually ssh into your reMarkable.")
+if checkmsg != "":
+	print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
+	print(checkmsg)
 	ssh_connection.terminate()
 	sys.exit(255)
 
