@@ -97,7 +97,7 @@ def construct_metadata(filetype, name, parent_id=''):
 	meta={
 		"visibleName": name,
 		"parent": parent_id,
-		"lastModified": int(time.time()*1000),
+		"lastModified": str(int(time.time()*1000)),
 		"metadatamodified": False,
 		"modified": False,
 		"pinned": False,
@@ -108,8 +108,12 @@ def construct_metadata(filetype, name, parent_id=''):
 	}
 
 	if filetype in ['pdf', 'epub']:
-		meta["lastOpenedPage"] = 0     # only for pdfs & epubs
-		meta["type"] = "DocumentType"  # changed from default
+		# changed from default
+		meta["type"] = "DocumentType"
+
+		# only for pdfs & epubs
+		meta["lastOpened"] = meta["lastModified"]
+		meta["lastOpenedPage"] = 0
 
 	return meta
 
