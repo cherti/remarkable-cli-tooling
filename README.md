@@ -12,6 +12,7 @@ All scripts are currently tested with software versions:
   * 2.11.0.442
   * 2.12.1.527
   * 2.12.2.573
+  * 2.12.3.606
 
 and should work under any unixoid operating system, such as Linux, BSD or MacOS/OSX. If you want to use these scripts under Windows, you likely need to resort to the Windows Subsystem for Linux to do so.
 
