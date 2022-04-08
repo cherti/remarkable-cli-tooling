@@ -15,6 +15,8 @@ All scripts are currently tested with software versions:
   * 2.12.3.606
 
 and should work under any unixoid operating system, such as Linux, BSD or MacOS/OSX. If you want to use these scripts under Windows, you likely need to resort to the Windows Subsystem for Linux to do so.
+Where reMarkable-specific internals have changed, supported version numbers are tagged to specific commits, to make sure to mark version-specific verified software versions.
+The latest version of this repository is typically tailored to the latest version of the reMarkable software.
 
 ## Summary
 
