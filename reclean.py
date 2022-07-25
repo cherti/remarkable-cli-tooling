@@ -25,7 +25,7 @@ parser.add_argument('-n', '--dry-run',
 
 args = parser.parse_args()
 
-ssh = f'ssh -S {ssh_socketfile} root@{args.ssh_destination}'
+ssh = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile} root@{args.ssh_destination}'
 
 ssh_connection = subprocess.Popen(f'{ssh} -o ConnectTimeout=1 -M -N -q ', shell=True)
 
