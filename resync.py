@@ -594,6 +594,11 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
         except ImportError:
             colored = lambda s, c: s
 
+
+        size = shutil.get_terminal_size()
+        columns = size.columns
+        lines   = size.lines
+
         # just print a filesystem tree for the remarkable representation of what we are going to create
         def print_tree(node, padding):
             """
@@ -601,16 +606,25 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
             including a note if the according node already exists on the remarkable or not
             """
             if node.gets_modified:
-                note = colored("| !!! gets modified !!!", 'red')
+                note = " | !!! gets modified !!!"
+                notelen = len(note)
+                note = colored(note, 'red')
             elif node.exists:
-                note = colored("| exists already", 'green')
+                note = " | exists already"
+                notelen = len(note)
+                note = colored(note, 'green')
             else:
                 note = ""
+                notelen = 0
 
-            print(padding, node.name, note)
+            line = padding + node.name
+            if len(line) > columns-notelen:
+                line = line[:columns-notelen-3] + "..."
+            line = line.ljust(columns-notelen)
+            print(line+note)
 
             for ch in node.children:
-                print_tree(ch, padding+"    ")
+                print_tree(ch, padding+"  ")
 
         for r in root:
             print_tree(r, "")
