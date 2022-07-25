@@ -621,7 +621,7 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
         for r in root:
             r.render(args.prepdir)
 
-        subprocess.call(f'scp -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
+        subprocess.call(f'scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
         ssh(f'systemctl restart xochitl')
 
         if args.prepdir == default_prepdir:  # aka we created it
