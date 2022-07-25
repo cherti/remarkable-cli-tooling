@@ -65,22 +65,11 @@ elif args.mode == '-':
 
 ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile} root@{args.ssh_destination}'
 
-ssh_connection = subprocess.Popen(f'{ssh_command} -o ConnectTimeout=1 -M -N -q ', shell=True)
-
 def ssh(arg,dry=False):
     if args.verbosity >= 1:
         print(f'{ssh_command} {arg}')
     if not dry:
         return subprocess.getoutput(f'{ssh_command} {arg}')
-
-
-# quickly check if we actually have a functional ssh connection (might not be the case right after an update)
-checkmsg = ssh('"/bin/true"')
-if checkmsg != "":
-    print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
-    print(checkmsg)
-    ssh_connection.terminate()
-    sys.exit(255)
 
 
 class FileCollision(Exception):
@@ -663,20 +652,33 @@ def pull_from_remarkable(documents, destination=None, **kwargs):
             a.download(targetdir=destination_directory)
 
 
-if args.mode == 'push':
-    push_to_remarkable(**vars(args))
-elif args.mode == 'pull':
-    pull_from_remarkable(**vars(args))
-elif args.mode == 'backup':
-    args.documents = get_toplevel_files()
-    pull_from_remarkable(**vars(args))
-else:
-    print("Unknown mode, doing nothing.")
-    print("Available modes are")
-    print("    push:   push documents from this machine to the reMarkable")
-    print("    pull:   pull documents from the reMarkable to this machine")
-    print("    backup: pull all files from the remarkable to this machine (excludes still apply)")
+
+ssh_connection = None
+try:
+    ssh_connection = subprocess.Popen(f'{ssh_command} -o ConnectTimeout=1 -M -N -q ', shell=True)
+
+    # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
+    checkmsg = ssh('"/bin/true"')
+    if checkmsg != "":
+        print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
+        print(checkmsg)
+        sys.exit(255)
 
 
-ssh_connection.terminate()
-#os.remove(ssh_socketfile)
+    if args.mode == 'push':
+        push_to_remarkable(**vars(args))
+    elif args.mode == 'pull':
+        pull_from_remarkable(**vars(args))
+    elif args.mode == 'backup':
+        args.documents = get_toplevel_files()
+        pull_from_remarkable(**vars(args))
+    else:
+        print("Unknown mode, doing nothing.")
+        print("Available modes are")
+        print("    push:   push documents from this machine to the reMarkable")
+        print("    pull:   pull documents from the reMarkable to this machine")
+        print("    backup: pull all files from the remarkable to this machine (excludes still apply)")
+finally:
+    if ssh_connection is not None:
+        ssh_connection.terminate()
+
