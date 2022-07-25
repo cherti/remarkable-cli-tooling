@@ -25,11 +25,12 @@ parser.add_argument('-n', '--dry-run',
 
 args = parser.parse_args()
 
+ssh = f'ssh -S {ssh_socketfile} root@{args.ssh_destination}'
 
-ssh_connection = subprocess.Popen(f'ssh -o ConnectTimeout=1 -M -N -q -S {ssh_socketfile} root@{args.ssh_destination}', shell=True)
+ssh_connection = subprocess.Popen(f'{ssh} -o ConnectTimeout=1 -M -N -q ', shell=True)
 
 # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
-checkmsg = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "/bin/true"')
+checkmsg = subprocess.getoutput(f'{ssh}  "/bin/true"')
 if checkmsg != "":
 	print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
 	print(checkmsg)
@@ -41,7 +42,7 @@ def get_metadata_by_uuid(u):
 	"""
 	retrieves metadata for a given document identified by its uuid
 	"""
-	raw_metadata = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "cat ~/.local/share/remarkable/xochitl/{u}.metadata"')
+	raw_metadata = subprocess.getoutput(f'{ssh}  "cat ~/.local/share/remarkable/xochitl/{u}.metadata"')
 	try:
 		metadata = json.loads(raw_metadata)
 		return metadata
@@ -56,7 +57,7 @@ def get_metadata_by_uuid(u):
 #
 #################################
 
-document_metadata = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "ls -1 ~/.local/share/remarkable/xochitl/*.metadata"')
+document_metadata = subprocess.getoutput(f'{ssh}  "ls -1 ~/.local/share/remarkable/xochitl/*.metadata"')
 metadata_uuids = set([pathlib.Path(d).stem for d in document_metadata.split('\n')])
 
 deleted_uuids = []
@@ -79,7 +80,7 @@ else:
 	decision = input(f'Clean up {len(deleted_uuids)} deleted files? [Y/n]')
 	if decision in ['', 'y', 'Y']:
 		for u in deleted_uuids:
-			cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "rm -r ~/.local/share/remarkable/xochitl/{u}*"'
+			cmd = f'{ssh}  "rm -r ~/.local/share/remarkable/xochitl/{u}*"'
 			if args.dryrun:
 				print(cmd)
 			else:
@@ -93,7 +94,7 @@ else:
 #
 #################################
 
-all_document_ls = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "ls -1 ~/.local/share/remarkable/xochitl"')
+all_document_ls = subprocess.getoutput(f'{ssh}  "ls -1 ~/.local/share/remarkable/xochitl"')
 all_document_files = [pathlib.Path(p) for p in all_document_ls.split('\n')]
 all_uuids = set([d.stem for d in all_document_files])
 
@@ -122,7 +123,7 @@ if decision in ['', 'y', 'Y']:
 
 
 	for of in orphan_deletion_candidates:
-		cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} \'rm "/home/root/.local/share/remarkable/xochitl/{of}"*\''
+		cmd = f'{ssh}  \'rm "/home/root/.local/share/remarkable/xochitl/{of}"*\''
 		if args.dryrun:
 			print(cmd)
 		else:
