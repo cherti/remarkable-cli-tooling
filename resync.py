@@ -487,7 +487,9 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
             node = Folder(path.name, parent=parent)
             for f in os.listdir(path):
                 child = construct_node_tree_from_disk(path/f, parent=node)
-                node.add_child(child)
+                if child is not None:
+                    node.add_child(child)
+            return node
 
         elif path.is_file() and path.suffix.lower() in ['.pdf', '.epub']:
             node = Document(path, parent=parent)
@@ -507,8 +509,10 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
                         # we simply switch out the render function of this node to a simple document copy
                         # might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
                         node.render = lambda self, prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
-
-        return node
+            return node
+        else:
+            print(f"unsupported file type, ignored: {path}")
+            return None
 
 
     # first, assemble the given output directory (-o) where everything shall be sorted into
@@ -531,11 +535,15 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
     if anchor is None:
         root = []
         for doc in documents:
-            root.append(construct_node_tree_from_disk(doc))
+            node = construct_node_tree_from_disk(doc)
+            if node is not None:
+                root.append(node)
 
     else:
         for doc in documents:
-            anchor.add_child(construct_node_tree_from_disk(doc, parent=anchor))
+            node = construct_node_tree_from_disk(doc, parent=anchor)
+            if node is not None:
+                anchor.add_child(node)
 
         # make it into a 1-element list to streamline code further down
         root = [root]
