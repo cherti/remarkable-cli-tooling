@@ -11,8 +11,17 @@ default_prepdir = tempfile.mkdtemp()
 ssh_socketfile = '/tmp/remarkable-push.socket'
 
 parser = argparse.ArgumentParser(description='Clean deleted files from your reMarkable')
-parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>', help='remote address of the reMarkable')
-parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=False, help="Don't actually clean files, just show what would be done")
+parser.add_argument('-r', '--remote-address',
+                    action='store',
+                    default='10.11.99.1',
+                    dest='ssh_destination',
+                    metavar='<IP or hostname>',
+                    help='remote address of the reMarkable')
+parser.add_argument('-n', '--dry-run',
+                    dest='dryrun',
+                    action='store_true',
+                    default=False,
+                    help="Don't actually clean files, just show what would be done")
 
 args = parser.parse_args()
 
