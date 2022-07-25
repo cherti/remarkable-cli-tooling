@@ -309,71 +309,14 @@ class Node:
         This creates a document tree for all nodes that are direct and indirect
         descendants of this node.
         """
-        if self.filetype != 'folder':
-            # documents don't have children, this one's easy
-            return
-
-        output = ssh(f'"grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"')
-        children_uuids = set([pathlib.Path(d).stem for d in output.split('\n')])
-        if '' in children_uuids:
-            # if we get an empty string here, there are no children to this folder
-            return
-
-        for chu in children_uuids:
-            md = get_metadata_by_uuid(chu)
-            if md['type'] == "CollectionType":
-                ch = Folder(md['visibleName'], parent=self)
-            else:
-
-                name = md['visibleName']
-
-                if not name.endswith('.pdf'):
-                    name += '.pdf'
-
-                ch = Document(name, parent=self)
-
-            ch.id = chu
-            self.add_child(ch)
-            ch.build_downwards()
+        raise Exception("Not implemented")
 
 
     def download(self, targetdir=pathlib.Path.cwd()):
         """
         retrieve document node from the remarkable to local system
         """
-        if args.dryrun:
-            if self.filetype == 'folder':
-                # folders we simply create ourselves
-                print("creating directory", targetdir/self.name)
-                for ch in self.children:
-                    ch.download(targetdir/self.name)
-            else:
-                print("downloading document to", targetdir/self.name)
-        else:
-
-            logmsg(1, "retrieving " + self.get_full_path())
-            os.chdir(targetdir)
-
-            if self.filetype == 'folder':
-                # folders we simply create ourselves
-                os.makedirs(self.name, exist_ok=True)
-
-                for ch in self.children:
-                    ch.download(targetdir/self.name)
-
-            else:
-                # documents we need to actually download
-                filename = self.name if self.name.lower().endswith('.pdf') else f'{self.name}.pdf'
-                if os.path.exists(filename) and not args.overwrite:
-                    logmsg(0, f"File {filename} already exists, skipping (use --overwrite to pull regardless)")
-                else:
-                    try:
-                        resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
-                        with open(filename, 'wb') as f:
-                            f.write(resp.read())
-                    except urllib.error.URLError as e:
-                        print(f"{e.reason}: Is the web interface enabled? (Settings > Storage > USB web interface)")
-                        sys.exit(2)
+        raise Exception("Not implemented")
 
 
 class Document(Node):
@@ -400,6 +343,41 @@ class Document(Node):
             shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
 
 
+    def build_downwards(self):
+        """
+        This creates a document tree for all nodes that are direct and indirect
+        descendants of this node.
+        """
+        # documents don't have children, this one's easy
+        return
+
+
+    def download(self, targetdir=pathlib.Path.cwd()):
+        """
+        retrieve document node from the remarkable to local system
+        """
+        if args.dryrun:
+            print("downloading document to", targetdir/self.name)
+        else:
+
+            logmsg(1, "retrieving " + self.get_full_path())
+            os.chdir(targetdir)
+
+            # documents we need to actually download
+            filename = self.name if self.name.lower().endswith('.pdf') else f'{self.name}.pdf'
+            if os.path.exists(filename) and not args.overwrite:
+                logmsg(0, f"File {filename} already exists, skipping (use --overwrite to pull regardless)")
+            else:
+                try:
+                    resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
+                    with open(filename, 'wb') as f:
+                        f.write(resp.read())
+                except urllib.error.URLError as e:
+                    print(f"{e.reason}: Is the web interface enabled? (Settings > Storage > USB web interface)")
+                    sys.exit(2)
+
+
+
 class Folder(Node):
 
     def __init__(self, name, parent=None):
@@ -417,6 +395,54 @@ class Folder(Node):
 
         for ch in self.children:
             ch.render(prepdir)
+
+
+    def build_downwards(self):
+        """
+        This creates a document tree for all nodes that are direct and indirect
+        descendants of this node.
+        """
+        output = ssh(f'"grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"')
+        children_uuids = set([pathlib.Path(d).stem for d in output.split('\n')])
+        if '' in children_uuids:
+            # if we get an empty string here, there are no children to this folder
+            return
+
+        for chu in children_uuids:
+            md = get_metadata_by_uuid(chu)
+            if md['type'] == "CollectionType":
+                ch = Folder(md['visibleName'], parent=self)
+            else:
+                name = md['visibleName']
+                if not name.endswith('.pdf'):
+                    name += '.pdf'
+                ch = Document(name, parent=self)
+
+            ch.id = chu
+            self.add_child(ch)
+            ch.build_downwards()
+
+
+    def download(self, targetdir=pathlib.Path.cwd()):
+        """
+        retrieve document node from the remarkable to local system
+        """
+        if args.dryrun:
+            # folders we simply create ourselves
+            print("creating directory", targetdir/self.name)
+            for ch in self.children:
+                ch.download(targetdir/self.name)
+        else:
+
+            logmsg(1, "retrieving " + self.get_full_path())
+            os.chdir(targetdir)
+
+            # folders we simply create ourselves
+            os.makedirs(self.name, exist_ok=True)
+
+            for ch in self.children:
+                ch.download(targetdir/self.name)
+
 
 
 def identify_node(name, parent=None):
