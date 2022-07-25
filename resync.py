@@ -52,10 +52,19 @@ elif args.mode == '-':
     args.mode = 'pull'
 
 
-ssh_connection = subprocess.Popen(f'ssh -o ConnectTimeout=1 -M -N -q -S {ssh_socketfile} root@{args.ssh_destination}', shell=True)
+ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile} root@{args.ssh_destination}'
+
+ssh_connection = subprocess.Popen(f'{ssh_command} -o ConnectTimeout=1 -M -N -q ', shell=True)
+
+def ssh(arg,dry=False):
+    if args.verbosity >= 1:
+        print(f'{ssh_command} {arg}')
+    if not dry:
+        return subprocess.getoutput(f'{ssh_command} {arg}')
+
 
 # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
-checkmsg = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "/bin/true"')
+checkmsg = ssh('"/bin/true"')
 if checkmsg != "":
     print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
     print(checkmsg)
@@ -122,8 +131,7 @@ def get_metadata_by_uuid(u):
     """
     retrieves metadata for a given document identified by its uuid
     """
-    raw_metadata = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "cat .local/share/remarkable/xochitl/{u}.metadata"')
-    #raw_metadata = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{ssh_destination} "cat .local/share/remarkable/xochitl/{u}.metadata"')
+    raw_metadata = ssh(f'"cat .local/share/remarkable/xochitl/{u}.metadata"')
     try:
         metadata = json.loads(raw_metadata)
 
@@ -141,9 +149,7 @@ def get_metadata_by_visibleName(name):
     retrieves metadata for all given documents that have the given name set as visibleName
     """
     #pattern = f'"visibleName": "{name}"'
-    cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"visibleName\\": \\"{name}\\"\' .local/share/remarkable/xochitl/*.metadata"'
-    #cmd = f'ssh -S {ssh_socketfile} root@{ssh_destination} "grep -lF \'\\"visibleName\\": \\"{name}\\"\' .local/share/remarkable/xochitl/*.metadata"'
-    res = subprocess.getoutput(cmd)
+    res = ssh(f'"grep -lF \'\\"visibleName\\": \\"{name}\\"\' .local/share/remarkable/xochitl/*.metadata"')
 
     reslist = []
     if res != '':
@@ -303,8 +309,8 @@ class Node:
             # documents don't have children, this one's easy
             return
 
-        cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"'
-        children_uuids = set([pathlib.Path(d).stem for d in subprocess.getoutput(cmd).split('\n')])
+        output = ssh(f'"grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"')
+        children_uuids = set([pathlib.Path(d).stem for d in output.split('\n')])
         if '' in children_uuids:
             # if we get an empty string here, there are no children to this folder
             return
@@ -432,8 +438,8 @@ def get_toplevel_files():
     get a list of all documents in the toplevel My files drawer
     """
 
-    cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"\\"\' .local/share/remarkable/xochitl/*.metadata"'
-    toplevel_candidates = set([pathlib.Path(d).stem for d in subprocess.getoutput(cmd).split('\n')])
+    output = ssh(f'"grep -lF \'\\"parent\\": \\"\\"\' .local/share/remarkable/xochitl/*.metadata"')
+    toplevel_candidates = set([pathlib.Path(d).stem for d in output.split('\n')])
 
     toplevel_files = []
     for u in toplevel_candidates:
@@ -575,7 +581,7 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
             r.render(args.prepdir)
 
         subprocess.call(f'scp -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
-        subprocess.call(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} systemctl restart xochitl', shell=True)
+        ssh(f'systemctl restart xochitl')
 
         if args.prepdir == default_prepdir:  # aka we created it
             shutil.rmtree(args.prepdir)
