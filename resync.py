@@ -211,18 +211,11 @@ def curb_tree(node, excludelist):
 
 class Node:
 
-    def __init__(self, name, parent=None, filetype=None, document=None):
+    def __init__(self, name, parent=None):
 
         self.name = name
-        self.filetype = filetype
-        self.doctype = 'CollectionType' if filetype == 'folder' else 'DocumentType'
         self.parent = parent
         self.children = []
-        if filetype in ['pdf', 'epub']:
-            if document is not None:
-                self.doc = document
-            else:
-                raise TypeError("No document provided for file node " + name)
 
         self.id = None
         self.exists = False
@@ -387,10 +380,11 @@ class Document(Node):
 
     def __init__(self, document, parent=None):
 
-        docpath = pathlib.Path(document)
-        filetype = docpath.suffix[1:] if docpath.suffix.startswith('.') else docpath.suffix
+        self.doc = pathlib.Path(document)
+        self.doctype = 'DocumentType'
+        self.filetype = self.doc.suffix[1:] if self.doc.suffix.startswith('.') else self.doc.suffix
 
-        super().__init__(docpath.name, parent=parent, filetype=filetype, document=docpath)
+        super().__init__(self.doc.name, parent=parent)
 
 
     def render(self, prepdir):
@@ -409,7 +403,9 @@ class Document(Node):
 class Folder(Node):
 
     def __init__(self, name, parent=None):
-        super().__init__(name, parent=parent, filetype='folder')
+        self.doctype  = 'CollectionType'
+        self.filetype = 'folder'
+        super().__init__(name, parent=parent)
 
 
     def render(self, prepdir):
