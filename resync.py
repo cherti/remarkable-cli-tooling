@@ -20,31 +20,42 @@ ssh_socketfile = '/tmp/remarkable-push.socket'
 
 parser = argparse.ArgumentParser(description='Push and pull files to and from your reMarkable')
 
-parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=False, help="Don't actually copy files, just show what would be copied")
-parser.add_argument('-o', '--output', action='store', default=None, dest='output_destination', metavar='<folder>', help='Destination for copied files, either on or off device')
-parser.add_argument('-v', dest='verbosity', action='count', default=0, help='verbosity level')
+parser.add_argument('-n', '--dry-run', dest='dryrun', action='store_true', default=False,
+                    help="Don't actually copy files, just show what would be copied")
+parser.add_argument('-o', '--output', action='store', default=None, dest='destination', metavar='<folder>',
+                    help=('Destination for copied files.'
+                          '\nIn the push mode, it specifies a folder on the device.'
+                          '\nIn the pull mode, it specifies a local directory.'))
+parser.add_argument('-v', dest='verbosity', action='count', default=0,
+                    help='verbosity level')
 
 existing_files_handling = parser.add_mutually_exclusive_group()
-existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_existing_files', action='store_true', default=False, help="Don't copy additional versions of existing files")
-existing_files_handling.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
-existing_files_handling.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
+existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_existing', action='store_true', default=False,
+                                     help="Don't copy additional versions of existing files")
+existing_files_handling.add_argument('--overwrite', dest='overwrite', action='store_true', default=False,
+                                     help="Overwrite existing files with a new version (potentially destructive)")
+existing_files_handling.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False,
+                                     help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
 
-parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', type=str, help='exclude a pattern from transfer (must be Python-regex)')
+parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', default=[],
+                    help='exclude a pattern from transfer (must be Python-regex)')
 
-parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>', help='remote address of the reMarkable')
-parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir, help='custom directory to render files to-be-upload')
-parser.add_argument('--debug', dest='debug', action='store_true', default=False, help="Render documents, but don't copy to remarkable.")
+parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>',
+                    help='remote address of the reMarkable')
+parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir,
+                    help='custom directory to render files to-be-upload')
+parser.add_argument('--debug', dest='debug', action='store_true', default=False,
+                    help="Render documents, but don't copy to remarkable.")
 
-parser.add_argument('mode', metavar='mode', type=str, help='push/+, pull/- or backup')
-parser.add_argument('documents', metavar='documents', type=str, nargs='*', help='Documents and folders to be pushed to the reMarkable')
+parser.add_argument('mode', type=str, choices=["push","pull","backup","+","-"],
+                    help='push/+, pull/- or backup')
+parser.add_argument('documents', metavar='documents', type=str, nargs='*',
+                    help='Documents and folders to be pushed to the reMarkable')
 
 args = parser.parse_args()
 
 if args.overwrite_doc_only:
     args.overwrite = True
-
-if args.exclude_patterns is None:
-    args.exclude_patterns = []
 
 if args.mode == '+':
     args.mode = 'push'
@@ -241,7 +252,7 @@ class Node:
             self.id = did
             self.exists = True
 
-        elif len(filtered_metadata) > 1 and (args.skip_existing_files or args.overwrite) and args.mode == 'push':
+        elif len(filtered_metadata) > 1 and (args.skip_existing or args.overwrite) and args.mode == 'push':
             # ok, something is still ambiguous, but for what we want to do we cannot have that.
             # Hence, we error out here as currently the risk of breaking something is too great at this point.
             destination_name = self.parent.name if self.parent is not None else 'toplevel'
@@ -458,7 +469,7 @@ def get_toplevel_files():
 ###############################
 
 
-def push_to_remarkable(documents, destination=None, overwrite=False, skip_existing=False):
+def push_to_remarkable(documents, destination=None, overwrite=False, skip_existing=False, **kwargs):
     """
     push a list of documents to the reMarkable
 
@@ -587,7 +598,7 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
             shutil.rmtree(args.prepdir)
 
 
-def pull_from_remarkable(documents, destination=None):
+def pull_from_remarkable(documents, destination=None, **kwargs):
     """
     pull documents from the remarkable to the local system
 
@@ -623,11 +634,12 @@ def pull_from_remarkable(documents, destination=None):
 
 
 if args.mode == 'push':
-    push_to_remarkable(args.documents, destination=args.output_destination, overwrite=args.overwrite, skip_existing=args.skip_existing_files)
+    push_to_remarkable(**vars(args))
 elif args.mode == 'pull':
-    pull_from_remarkable(args.documents, destination=args.output_destination)
+    pull_from_remarkable(**vars(args))
 elif args.mode == 'backup':
-    pull_from_remarkable(get_toplevel_files(), destination=args.output_destination)
+    args.documents = get_toplevel_files()
+    pull_from_remarkable(**vars(args))
 else:
     print("Unknown mode, doing nothing.")
     print("Available modes are")
