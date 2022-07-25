@@ -6,6 +6,7 @@ import argparse
 import subprocess
 import tempfile
 import pathlib
+import tqdm
 
 default_prepdir = tempfile.mkdtemp()
 
@@ -63,12 +64,7 @@ metadata_uuids = set([pathlib.Path(d).stem for d in document_metadata.split('\n'
 
 deleted_uuids = []
 limit = 10
-for i, u in enumerate(metadata_uuids):
-    if i/len(metadata_uuids)*100 > limit:
-        print(f'checking for deleted files - {limit}% done')
-        limit += 10
-
-
+for u in tqdm.tqdm(metadata_uuids):
     if get_metadata_by_uuid(u)['deleted']:
         deleted_uuids.append(u)
 
