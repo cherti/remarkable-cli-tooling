@@ -12,6 +12,8 @@ import tempfile
 import pathlib
 import urllib.request
 import re
+import io
+import tqdm
 from copy import deepcopy
 
 default_prepdir = tempfile.mkdtemp()
@@ -127,47 +129,97 @@ def construct_metadata(filetype, name, parent_id=''):
     return meta
 
 
+# from https://stackoverflow.com/questions/6886283/how-i-can-i-lazily-read-multiple-json-values-from-a-file-stream-in-python
+def stream_read_json(f):
+    start_pos = 0
+    while True:
+        try:
+            obj = json.load(f)
+            yield obj
+            return
+        except json.JSONDecodeError as e:
+            f.seek(start_pos)
+            json_str = f.read(e.pos)
+            if json_str == '':
+                return
+            obj = json.loads(json_str)
+            start_pos += e.pos
+            yield obj
+
+
+metadata_by_uuid = {}
+metadata_by_name = {}
+metadata_by_parent = {}
+metadata_by_name_and_parent = {}
+
+def retrieve_metadata():
+    """
+    retrieves all metadata from the device
+    """
+    print("retrieving metadata...")
+
+    paths = ssh(f'"ls -1 .local/share/remarkable/xochitl/*.metadata"').split("\n")
+    with io.StringIO(ssh(f'"cat .local/share/remarkable/xochitl/*.metadata"')) as f:
+        for path, metadata in tqdm.tqdm(zip(paths, stream_read_json(f)), total=len(paths)):
+            path = pathlib.Path(path)
+            if metadata['deleted'] or metadata['parent'] == 'trash':
+                continue
+            # metadata["uuid"] = path.stem
+            uuid = path.stem
+            metadata_by_uuid[uuid]                    = metadata
+
+            if metadata["visibleName"] not in metadata_by_name:
+                metadata_by_name[metadata["visibleName"]] = dict()
+            metadata_by_name[metadata["visibleName"]][uuid] = metadata
+
+            if metadata["parent"] not in metadata_by_parent:
+                metadata_by_parent[metadata["parent"]] = dict()
+            metadata_by_parent[metadata["parent"]][uuid] = metadata
+
+            if (metadata["visibleName"], metadata["parent"]) in metadata_by_name_and_parent:
+                raise FileCollision(f'Same file name {metadata["visibleName"]} under the same parent, not supported! Remove the file!')
+            metadata_by_name_and_parent[(metadata["visibleName"], metadata["parent"])] = (uuid, metadata)
+    pass
+
+
 def get_metadata_by_uuid(u):
     """
     retrieves metadata for a given document identified by its uuid
     """
-    raw_metadata = ssh(f'"cat .local/share/remarkable/xochitl/{u}.metadata"')
-    try:
-        metadata = json.loads(raw_metadata)
-
-        if metadata['deleted'] or metadata['parent'] == 'trash':
-            return None
-        else:
-            return metadata
-
-    except json.decoder.JSONDecodeError:
+    if u in metadata_by_uuid:
+        return metadata_by_uuid[u]
+    else:
         return None
 
 
-def get_metadata_by_visibleName(name):
+def get_metadata_by_name(name):
     """
     retrieves metadata for all given documents that have the given name set as visibleName
     """
-    #pattern = f'"visibleName": "{name}"'
-    res = ssh(f'"grep -lF \'\\"visibleName\\": \\"{name}\\"\' .local/share/remarkable/xochitl/*.metadata"')
+    if name in metadata_by_name:
+        return metadata_by_name[name]
+    else:
+        return None
 
-    reslist = []
-    if res != '':
-        for result in res.split('\n'):
 
-            # hard pattern matching to provoke a mismatch-exception on the first number mismatch
-            try:
-                _, _, _, _, filename = result.split('/')
-            except ValueError:
-                continue
+def get_metadata_by_parent(parent):
+    """
+    retrieves metadata for all given documents that have the given parent
+    """
+    if parent in metadata_by_parent:
+        return metadata_by_parent[parent]
+    else:
+        return {}
 
-            u, _ = filename.split('.')
 
-            metadata = get_metadata_by_uuid(u)
-            if metadata:
-                reslist.append((u, metadata))
-
-    return reslist
+def get_metadata_by_name_and_parent(name, parent):
+    """
+    retrieves metadata for all given documents that have the given parent
+    """
+    if (name, parent) in metadata_by_name_and_parent:
+        return metadata_by_name_and_parent[(name, parent)]
+    else:
+        return None
 
 
 def curb_tree(node, excludelist):
@@ -206,41 +258,21 @@ class Node:
         self.parent = parent
         self.children = []
 
-        self.id = None
-        self.exists = False
         self.gets_modified = False
 
         # now retrieve the document ID for this document if it already exists
-        metadata = get_metadata_by_visibleName(self.name)
+        if parent is None:
+            metadata = get_metadata_by_name_and_parent(self.name, "")
+        else:
+            metadata = get_metadata_by_name_and_parent(self.name, parent.id)
 
-        # first, we filter the metadata we got for those that are actually in the same location
-        # in the document tree that this node is, i.e. same parent and same document type
-        filtered_metadata = []
-        for (did, md) in metadata:
-
-            # ˇ (is root node) or (has matching parent) ˇ
-            location_match = (self.parent is None and md['parent'] == '') or (self.parent is not None and self.parent.id == md['parent'])
-            type_match = self.doctype == md['type']
-            if location_match and type_match:
-                # only keep metadata at the same location in the filesystem tree
-                filtered_metadata.append((did, md))
-
-
-        if len(filtered_metadata) == 1:
-
-            # ok, we have a document already in place at this node_point that fits the position in the document tree
-            # first, get unpack its metadata and assign the document id
-            did, md = metadata[0]
-            self.id = did
+        if metadata:
+            uuid, metadata = metadata
+            self.id = uuid
             self.exists = True
-
-        elif len(filtered_metadata) > 1 and (args.skip_existing or args.overwrite) and args.mode == 'push':
-            # ok, something is still ambiguous, but for what we want to do we cannot have that.
-            # Hence, we error out here as currently the risk of breaking something is too great at this point.
-            destination_name = self.parent.name if self.parent is not None else 'toplevel'
-            msg = f"File or folder {self.name} occurs multiple times in destination {destination_name}. Situation ambiguous, cannot decide how to proceed."
-            print(msg, file=sys.stderr)
-            sys.exit(1)
+        else:
+            self.id = None
+            self.exists = False
 
 
     def __repr__(self):
@@ -366,7 +398,6 @@ class Document(Node):
                     sys.exit(2)
 
 
-
 class Folder(Node):
 
     def __init__(self, name, parent=None):
@@ -391,23 +422,16 @@ class Folder(Node):
         This creates a document tree for all nodes that are direct and indirect
         descendants of this node.
         """
-        output = ssh(f'"grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"')
-        children_uuids = set([pathlib.Path(d).stem for d in output.split('\n')])
-        if '' in children_uuids:
-            # if we get an empty string here, there are no children to this folder
-            return
-
-        for chu in children_uuids:
-            md = get_metadata_by_uuid(chu)
-            if md['type'] == "CollectionType":
-                ch = Folder(md['visibleName'], parent=self)
+        for uuid, metadata in get_metadata_by_parent(self.id).items():
+            if metadata['type'] == "CollectionType":
+                ch = Folder(metadata['visibleName'], parent=self)
             else:
-                name = md['visibleName']
+                name = metadata['visibleName']
                 if not name.endswith('.pdf'):
                     name += '.pdf'
                 ch = Document(name, parent=self)
 
-            ch.id = chu
+            ch.id = uuid
             self.add_child(ch)
             ch.build_downwards()
 
@@ -433,42 +457,13 @@ class Folder(Node):
                 ch.download(targetdir/self.name)
 
 
-
-def identify_node(name, parent=None):
-    """
-    infer a node's type by name and location, and return a node object
-    in case this is unambiguously possible
-    """
-    metadata = get_metadata_by_visibleName(name)
-    candidates = []
-
-    for u, md in metadata:
-        # location_match = (is root node) or (has matching parent)
-        location_match = (parent is None and md['parent'] == '') or (parent is not None and parent.id == md['parent'])
-        if location_match:
-            candidates.append((u, md))
-
-    if len(candidates) == 1:
-        u, md = candidates[0]
-        return Document(name, parent=parent) if md['type'] == 'DocumentType' else Folder(name, parent=parent)
-    else:
-        return None
-
-
 def get_toplevel_files():
     """
     get a list of all documents in the toplevel My files drawer
     """
-
-    output = ssh(f'"grep -lF \'\\"parent\\": \\"\\"\' .local/share/remarkable/xochitl/*.metadata"')
-    toplevel_candidates = set([pathlib.Path(d).stem for d in output.split('\n')])
-
     toplevel_files = []
-    for u in toplevel_candidates:
-        md = get_metadata_by_uuid(u)
-        if md is not None:
-            toplevel_files.append(md['visibleName'])
-
+    for u, md in get_metadata_by_parent(""):
+        toplevel_files.append(md['visibleName'])
     return toplevel_files
 
 
@@ -634,13 +629,16 @@ def pull_from_remarkable(documents, destination=None, **kwargs):
         if parents:
             local_anchor = Folder(parents[0], parent=None)
             for par in parents[1:]:
-
                 new_node = Folder(par, parent=local_anchor)
                 local_anchor.add_child(new_node)
                 local_anchor = new_node
 
-        new_node = identify_node(target, parent=local_anchor)
-        if new_node is not None:
+        metadata = get_metadata_by_name(target)
+        if metadata is not None:
+            if metadata['type'] == 'DocumentType':
+                new_node = Document(target, parent=local_anchor)
+            else:
+                new_node = Folder(target, parent=local_anchor)
             anchors.append(new_node)
         else:
             print(f"Cannot find {doc}, skipping")
@@ -664,7 +662,7 @@ try:
         print(checkmsg)
         sys.exit(255)
 
-
+    retrieve_metadata()
     if args.mode == 'push':
         push_to_remarkable(**vars(args))
     elif args.mode == 'pull':
