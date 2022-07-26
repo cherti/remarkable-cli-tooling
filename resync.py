@@ -641,7 +641,8 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
         for r in root:
             r.render(args.prepdir)
 
-        subprocess.call(f'scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
+        for f in tqdm.tqdm(os.listdir(args.prepdir)):
+            subprocess.call(f'scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -q {args.prepdir}/{f} root@{args.ssh_destination}:.local/share/remarkable/xochitl/{f}', shell=True)
         ssh(f'systemctl restart xochitl')
 
         if args.prepdir == default_prepdir:  # aka we created it
