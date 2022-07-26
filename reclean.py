@@ -63,10 +63,10 @@ def cleanup_deleted():
     deleted_uuids = []
     limit = 10
     for u in tqdm.tqdm(metadata_uuids):
-        if get_metadata_by_uuid(u)['deleted']:
-            deleted_uuids.append(u)
-
-    print(f'checking for deleted files - {limit}% done')
+        metadata = get_metadata_by_uuid(u)
+        if metadata is not None:
+            if metadata['deleted']:
+                deleted_uuids.append(u)
 
     if len(deleted_uuids) == 0:
         print('No deleted files found.')
