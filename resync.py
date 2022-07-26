@@ -31,13 +31,23 @@ parser.add_argument('-o', '--output', action='store', default=None, dest='destin
 parser.add_argument('-v', dest='verbosity', action='count', default=0,
                     help='verbosity level')
 
-existing_files_handling = parser.add_mutually_exclusive_group()
-existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_existing', action='store_true', default=False,
-                                     help="Don't copy additional versions of existing files")
-existing_files_handling.add_argument('--overwrite', dest='overwrite', action='store_true', default=False,
-                                     help="Overwrite existing files with a new version (potentially destructive)")
-existing_files_handling.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False,
-                                     help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
+
+parser.add_argument('--if-exists',
+                    choices=["duplicate","overwrite","skip","doconly"],
+                    default="skip",
+                    help=("Specify the behavior when the destination file exists."
+                          "duplicate: Create a duplicate file in the same directory."
+                          "overwrite: Overwrite existing files and the metadata."
+                          "doconly:   Overwrite existing files but not the metadata."
+                          "skip:      Skip the file."))
+
+
+# parser.add_argument('--if-does-not-exist',
+#                     choices=["delete","skip"],
+#                     help=("Specify the behavior when the source file does not exist."
+#                           "delete: discard the target file."
+#                           "skip:      Skip the file. (default when pull)"))
+
 
 parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', default=[],
                     help='exclude a pattern from transfer (must be Python-regex)')
@@ -55,9 +65,6 @@ parser.add_argument('documents', metavar='documents', type=str, nargs='*',
                     help='Documents and folders to be pushed to the reMarkable')
 
 args = parser.parse_args()
-
-if args.overwrite_doc_only:
-    args.overwrite = True
 
 if args.mode == '+':
     args.mode = 'push'
@@ -386,16 +393,20 @@ class Document(Node):
 
             # documents we need to actually download
             filename = self.name if self.name.lower().endswith('.pdf') else f'{self.name}.pdf'
-            if os.path.exists(filename) and not args.overwrite:
-                logmsg(0, f"File {filename} already exists, skipping (use --overwrite to pull regardless)")
-            else:
-                try:
-                    resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
-                    with open(filename, 'wb') as f:
-                        f.write(resp.read())
-                except urllib.error.URLError as e:
-                    print(f"{e.reason}: Is the web interface enabled? (Settings > Storage > USB web interface)")
-                    sys.exit(2)
+            if os.path.exists(filename):
+                if if_exists == "skip":
+                    logmsg(0, f"File {filename} already exists, skipping")
+                elif if_exists == "overwrite":
+                    try:
+                        resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
+                        with open(filename, 'wb') as f:
+                            f.write(resp.read())
+                    except urllib.error.URLError as e:
+                        print(f"{e.reason}: Is the web interface enabled? (Settings > Storage > USB web interface)")
+                        sys.exit(2)
+                else:
+                    raise Exception("huh?")
+        pass
 
 
 class Folder(Node):
@@ -475,7 +486,7 @@ def get_toplevel_files():
 ###############################
 
 
-def push_to_remarkable(documents, destination=None, overwrite=False, skip_existing=False, **kwargs):
+def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
     """
     push a list of documents to the reMarkable
 
@@ -500,21 +511,32 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
         elif path.is_file() and path.suffix.lower() in ['.pdf', '.epub']:
             node = Document(path, parent=parent)
             if node.exists:
-                if not skip_existing and not overwrite:
-                    # if we don't skip existing files, this file gets a new document ID
-                    # and becomes a new file next to the existing one
-                    node.id = gen_did()
-                    node.exists = False
-                elif overwrite:
+                if if_exists == "skip":
+                    pass
+                elif if_exists == "overwrite":
                     # ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
                     # lie to our parser here, claiming there is nothing
                     node.exists = False
                     node.gets_modified = True  # and make a note to properly mark it in case of a dry run
-                    if args.overwrite_doc_only:
-                        # if we only want to overwrite the document file itself, but keep everything else,
-                        # we simply switch out the render function of this node to a simple document copy
-                        # might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
-                        node.render = lambda self, prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
+
+                elif if_exists == "doconly":
+                    # ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
+                    # lie to our parser here, claiming there is nothing
+                    node.exists = False
+                    node.gets_modified = True  # and make a note to properly mark it in case of a dry run
+                    # if we only want to overwrite the document file itself, but keep everything else,
+                    # we simply switch out the render function of this node to a simple document copy
+                    # might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
+                    node.render = lambda self, prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
+
+                elif if_exists == "duplicate":
+                    # if we don't skip existing files, this file gets a new document ID
+                    # and becomes a new file next to the existing one
+                    node.id = gen_did()
+                    node.exists = False
+                else:
+                    raise Exception("huh?")
+
             return node
         else:
             print(f"unsupported file type, ignored: {path}")
@@ -612,12 +634,15 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
             shutil.rmtree(args.prepdir)
 
 
-def pull_from_remarkable(documents, destination=None, **kwargs):
+def pull_from_remarkable(documents, destination=None, if_exists="skip", **kwargs):
     """
     pull documents from the remarkable to the local system
 
     documents: list of document paths on the remarkable to pull from
     """
+
+    assert if_exists in ["skip", "overwrite"]
+
     destination_directory = pathlib.Path(destination).absolute() if destination is not None else pathlib.Path.cwd()
     if not destination_directory.exists():
         print("Output directory non-existing, exiting.", file=sys.stderr)
