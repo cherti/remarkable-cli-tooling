@@ -20,14 +20,15 @@ default_prepdir = tempfile.mkdtemp()
 
 ssh_socketfile = '/tmp/remarkable-push.socket'
 
-parser = argparse.ArgumentParser(description='Push and pull files to and from your reMarkable')
+parser = argparse.ArgumentParser(description='Push and pull files to and from your reMarkable',
+                                 formatter_class=argparse.RawTextHelpFormatter)
 
 parser.add_argument('-n', '--dry-run', dest='dryrun', action='store_true', default=False,
                     help="Don't actually copy files, just show what would be copied")
-parser.add_argument('-o', '--output', action='store', default=None, dest='destination', metavar='<folder>',
+parser.add_argument('-o', '--output', action='store', default=None, dest='destination',
                     help=('Destination for copied files.'
-                          '\nIn the push mode, it specifies a folder on the device.'
-                          '\nIn the pull mode, it specifies a local directory.'))
+                          '\n  In the push mode, it specifies a folder on the device and defaults to the name of the source directory.'
+                          '\n  In the pull mode, it specifies a directory on the computer and defaults to the current directory.'))
 parser.add_argument('-v', dest='verbosity', action='count', default=0,
                     help='verbosity level')
 
@@ -36,17 +37,18 @@ parser.add_argument('--if-exists',
                     choices=["duplicate","overwrite","skip","doconly"],
                     default="skip",
                     help=("Specify the behavior when the destination file exists."
-                          "duplicate: Create a duplicate file in the same directory."
-                          "overwrite: Overwrite existing files and the metadata."
-                          "doconly:   Overwrite existing files but not the metadata."
-                          "skip:      Skip the file."))
+                          "\n  duplicate: Create a duplicate file in the same directory."
+                          "\n  overwrite: Overwrite existing files and the metadata."
+                          "\n  doconly:   Overwrite existing files but not the metadata."
+                          "\n  skip:      Skip the file. (default)"))
 
 
-# parser.add_argument('--if-does-not-exist',
-#                     choices=["delete","skip"],
-#                     help=("Specify the behavior when the source file does not exist."
-#                           "delete: discard the target file."
-#                           "skip:      Skip the file. (default when pull)"))
+parser.add_argument('--if-does-not-exist',
+                    choices=["delete","skip"],
+                    default="skip",
+                    help=("Specify the behavior when the source file does not exist."
+                          "\n  delete:    Remove the destination file."
+                          "\n  skip:      Skip the file. (default)"))
 
 
 parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', default=[],
@@ -60,7 +62,11 @@ parser.add_argument('--debug', dest='debug', action='store_true', default=False,
                     help="Render documents, but don't copy to remarkable.")
 
 parser.add_argument('mode', type=str, choices=["push","pull","backup","+","-"],
-                    help='push/+, pull/- or backup')
+                    help=("Specifies the transfer mode."
+                        "\n  push, +: push documents from this machine to the reMarkable"
+                        "\n  pull, -: pull documents from the reMarkable to this machine"
+                        "\n  backup:  pull all files from the remarkable to this machine (excludes still apply)"))
+
 parser.add_argument('documents', metavar='documents', type=str, nargs='*',
                     help='Documents and folders to be pushed to the reMarkable')
 
@@ -712,12 +718,6 @@ try:
     elif args.mode == 'backup':
         args.documents = get_toplevel_files()
         pull_from_remarkable(**vars(args))
-    else:
-        print("Unknown mode, doing nothing.")
-        print("Available modes are")
-        print("    push:   push documents from this machine to the reMarkable")
-        print("    pull:   pull documents from the reMarkable to this machine")
-        print("    backup: pull all files from the remarkable to this machine (excludes still apply)")
 finally:
     if ssh_connection is not None:
         ssh_connection.terminate()
