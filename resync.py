@@ -614,8 +614,8 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
                 notelen = len(note)
                 note = colored(note, 'green')
             else:
-                note = ""
-                notelen = 0
+                note = " | upload"
+                notelen = len(note)
 
             line = padding + node.name
             if len(line) > columns-notelen:
