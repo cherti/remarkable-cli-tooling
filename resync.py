@@ -492,6 +492,93 @@ def get_toplevel_files():
 ###############################
 
 
+try:
+    from termcolor import colored
+except ImportError:
+    colored = lambda s, c: s
+
+
+size = shutil.get_terminal_size()
+columns = size.columns
+lines   = size.lines
+
+# just print a filesystem tree for the remarkable representation of what we are going to create
+def print_tree(node, padding):
+    """
+    prints a filesystem representation of the constructed document tree,
+    including a note if the according node already exists on the remarkable or not
+    """
+    if node.gets_modified:
+        note = " | !!! gets modified !!!"
+        notelen = len(note)
+        note = colored(note, 'red')
+    elif node.exists:
+        note = " | exists already"
+        notelen = len(note)
+        note = colored(note, 'green')
+    else:
+        note = " | upload"
+        notelen = len(note)
+
+    line = padding + node.name
+    if len(line) > columns-notelen:
+        line = line[:columns-notelen-3] + "..."
+    line = line.ljust(columns-notelen)
+    print(line+note)
+
+    for ch in node.children:
+        print_tree(ch, padding+"  ")
+
+
+def construct_node_tree_from_disk(basepath, parent=None):
+    """
+    this recursively constructs the document tree based on the top-level
+    document/folder data structure on disk that we put in initially
+    """
+    path = pathlib.Path(basepath)
+    if path.is_dir():
+        node = Folder(path.name, parent=parent)
+        for f in os.listdir(path):
+            child = construct_node_tree_from_disk(path/f, parent=node)
+            if child is not None:
+                node.add_child(child)
+        return node
+
+    elif path.is_file() and path.suffix.lower() in ['.pdf', '.epub']:
+        node = Document(path, parent=parent)
+        if node.exists:
+            if args.if_exists == "skip":
+                pass
+            elif args.if_exists == "overwrite":
+                # ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
+                # lie to our parser here, claiming there is nothing
+                node.exists = False
+                node.gets_modified = True  # and make a note to properly mark it in case of a dry run
+
+            elif args.if_exists == "doconly":
+                # ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
+                # lie to our parser here, claiming there is nothing
+                node.exists = False
+                node.gets_modified = True  # and make a note to properly mark it in case of a dry run
+                # if we only want to overwrite the document file itself, but keep everything else,
+                # we simply switch out the render function of this node to a simple document copy
+                # might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
+                node.render = lambda self, prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
+
+            elif args.if_exists == "duplicate":
+                # if we don't skip existing files, this file gets a new document ID
+                # and becomes a new file next to the existing one
+                node.id = gen_did()
+                node.exists = False
+            else:
+                raise Exception("huh?")
+
+        return node
+    else:
+        print(f"unsupported file type, ignored: {path}")
+        return None
+
+
 def push_to_remarkable():
     """
     push a list of documents to the reMarkable
@@ -499,55 +586,6 @@ def push_to_remarkable():
     documents: list of documents
     destination: location on the device
     """
-
-    def construct_node_tree_from_disk(basepath, parent=None):
-        """
-        this recursively constructs the document tree based on the top-level
-        document/folder data structure on disk that we put in initially
-        """
-        path = pathlib.Path(basepath)
-        if path.is_dir():
-            node = Folder(path.name, parent=parent)
-            for f in os.listdir(path):
-                child = construct_node_tree_from_disk(path/f, parent=node)
-                if child is not None:
-                    node.add_child(child)
-            return node
-
-        elif path.is_file() and path.suffix.lower() in ['.pdf', '.epub']:
-            node = Document(path, parent=parent)
-            if node.exists:
-                if args.if_exists == "skip":
-                    pass
-                elif args.if_exists == "overwrite":
-                    # ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
-                    # lie to our parser here, claiming there is nothing
-                    node.exists = False
-                    node.gets_modified = True  # and make a note to properly mark it in case of a dry run
-
-                elif args.if_exists == "doconly":
-                    # ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
-                    # lie to our parser here, claiming there is nothing
-                    node.exists = False
-                    node.gets_modified = True  # and make a note to properly mark it in case of a dry run
-                    # if we only want to overwrite the document file itself, but keep everything else,
-                    # we simply switch out the render function of this node to a simple document copy
-                    # might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
-                    node.render = lambda self, prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
-
-                elif args.if_exists == "duplicate":
-                    # if we don't skip existing files, this file gets a new document ID
-                    # and becomes a new file next to the existing one
-                    node.id = gen_did()
-                    node.exists = False
-                else:
-                    raise Exception("huh?")
-
-            return node
-        else:
-            print(f"unsupported file type, ignored: {path}")
-            return None
-
 
     # first, assemble the given output directory (-o) where everything shall be sorted into
     # into our document tree representation
@@ -590,71 +628,30 @@ def push_to_remarkable():
 
     root = curbed_roots
 
+    # just print out the assembled document tree with appropriate actions
 
-    if args.dryrun:
+    for r in root:
+        print_tree(r, "")
+        print()
 
-        # just print out the assembled document tree with appropriate actions
-
-        try:
-            from termcolor import colored
-        except ImportError:
-            colored = lambda s, c: s
-
-
-        size = shutil.get_terminal_size()
-        columns = size.columns
-        lines   = size.lines
-
-        # just print a filesystem tree for the remarkable representation of what we are going to create
-        def print_tree(node, padding):
-            """
-            prints a filesystem representation of the constructed document tree,
-            including a note if the according node already exists on the remarkable or not
-            """
-            if node.gets_modified:
-                note = " | !!! gets modified !!!"
-                notelen = len(note)
-                note = colored(note, 'red')
-            elif node.exists:
-                note = " | exists already"
-                notelen = len(note)
-                note = colored(note, 'green')
-            else:
-                note = " | upload"
-                notelen = len(note)
-
-            line = padding + node.name
-            if len(line) > columns-notelen:
-                line = line[:columns-notelen-3] + "..."
-            line = line.ljust(columns-notelen)
-            print(line+note)
-
-            for ch in node.children:
-                print_tree(ch, padding+"  ")
-
-        for r in root:
-            print_tree(r, "")
-            print()
-
-    elif args.debug:
-
-        for r in root:
-            r.render(args.prepdir)
-        print(f' --> Payload data can be found in {args.prepdir}')
-
-    else:  # actually upload to the reMarkable
-
-        try:
+    try:
+        if not args.dryrun:
+            print(f"preparing the files to copy")
             for r in root:
                 r.render(args.prepdir)
 
+            if args.debug:
+                print(f' --> Payload data can be found in {args.prepdir}')
+                return
+
+        if not args.dryrun:
             for f in tqdm.tqdm(os.listdir(args.prepdir)):
                 subprocess.call(f'scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -q {args.prepdir}/{f} root@{args.ssh_destination}:.local/share/remarkable/xochitl/{f}', shell=True)
             ssh(f'systemctl restart xochitl')
 
-        finally:
-            if args.prepdir == default_prepdir:  # aka we created it
-                shutil.rmtree(args.prepdir)
+    finally:
+        if args.prepdir == default_prepdir and not args.debug:  # aka we created it
+            shutil.rmtree(args.prepdir)
 
 
 def pull_from_remarkable():
