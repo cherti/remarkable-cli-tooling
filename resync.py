@@ -638,15 +638,17 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
 
     else:  # actually upload to the reMarkable
 
-        for r in root:
-            r.render(args.prepdir)
+        try:
+            for r in root:
+                r.render(args.prepdir)
 
-        for f in tqdm.tqdm(os.listdir(args.prepdir)):
-            subprocess.call(f'scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -q {args.prepdir}/{f} root@{args.ssh_destination}:.local/share/remarkable/xochitl/{f}', shell=True)
-        ssh(f'systemctl restart xochitl')
+            for f in tqdm.tqdm(os.listdir(args.prepdir)):
+                subprocess.call(f'scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -q {args.prepdir}/{f} root@{args.ssh_destination}:.local/share/remarkable/xochitl/{f}', shell=True)
+            ssh(f'systemctl restart xochitl')
 
-        if args.prepdir == default_prepdir:  # aka we created it
-            shutil.rmtree(args.prepdir)
+        finally:
+            if args.prepdir == default_prepdir:  # aka we created it
+                shutil.rmtree(args.prepdir)
 
 
 def pull_from_remarkable(documents, destination=None, if_exists="skip", **kwargs):
