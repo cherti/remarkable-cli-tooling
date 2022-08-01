@@ -332,7 +332,7 @@ class Node:
         raise Exception("Rendering not implemented")
 
 
-    def build_downwards(self):
+    def build(self):
         """
         This creates a document tree for all nodes that are direct and indirect
         descendants of this node.
@@ -371,7 +371,7 @@ class Document(Node):
             shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
 
 
-    def build_downwards(self):
+    def build(self):
         """
         This creates a document tree for all nodes that are direct and indirect
         descendants of this node.
@@ -428,7 +428,7 @@ class Folder(Node):
             ch.render(prepdir)
 
 
-    def build_downwards(self):
+    def build(self):
         """
         This creates a document tree for all nodes that are direct and indirect
         descendants of this node.
@@ -444,7 +444,7 @@ class Folder(Node):
 
             ch.id = uuid
             self.add_child(ch)
-            ch.build_downwards()
+            ch.build()
 
 
     def download(self, targetdir=pathlib.Path.cwd()):
@@ -685,7 +685,7 @@ def pull_from_remarkable(documents, destination=None, if_exists="skip", **kwargs
 
 
     for a in anchors:
-        a.build_downwards()
+        a.build()
         if not curb_tree(a, args.exclude_patterns):
             a.download(targetdir=destination_directory)
 
