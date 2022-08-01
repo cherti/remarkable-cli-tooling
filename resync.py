@@ -492,7 +492,7 @@ def get_toplevel_files():
 ###############################
 
 
-def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
+def push_to_remarkable():
     """
     push a list of documents to the reMarkable
 
@@ -517,15 +517,15 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
         elif path.is_file() and path.suffix.lower() in ['.pdf', '.epub']:
             node = Document(path, parent=parent)
             if node.exists:
-                if if_exists == "skip":
+                if args.if_exists == "skip":
                     pass
-                elif if_exists == "overwrite":
+                elif args.if_exists == "overwrite":
                     # ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
                     # lie to our parser here, claiming there is nothing
                     node.exists = False
                     node.gets_modified = True  # and make a note to properly mark it in case of a dry run
 
-                elif if_exists == "doconly":
+                elif args.if_exists == "doconly":
                     # ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
                     # lie to our parser here, claiming there is nothing
                     node.exists = False
@@ -535,7 +535,7 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
                     # might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
                     node.render = lambda self, prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
 
-                elif if_exists == "duplicate":
+                elif args.if_exists == "duplicate":
                     # if we don't skip existing files, this file gets a new document ID
                     # and becomes a new file next to the existing one
                     node.id = gen_did()
@@ -555,8 +555,8 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
     root   = None  # the overall root node
     anchor = None  # the anchor to which we append new documents
 
-    if destination:
-        folders = destination.split('/')
+    if args.destination:
+        folders = args.destination.split('/')
         root = anchor = Folder(folders[0])
 
         for folder in folders[1:]:
@@ -568,13 +568,13 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
     # then add the actual folders/documents to the tree at the anchor point
     if anchor is None:
         root = []
-        for doc in documents:
+        for doc in args.documents:
             node = construct_node_tree_from_disk(doc)
             if node is not None:
                 root.append(node)
 
     else:
-        for doc in documents:
+        for doc in args.documents:
             node = construct_node_tree_from_disk(doc, parent=anchor)
             if node is not None:
                 anchor.add_child(node)
@@ -657,21 +657,24 @@ def push_to_remarkable(documents, destination=None, if_exists="skip", **kwargs):
                 shutil.rmtree(args.prepdir)
 
 
-def pull_from_remarkable(documents, destination=None, if_exists="skip", **kwargs):
+def pull_from_remarkable():
     """
     pull documents from the remarkable to the local system
 
     documents: list of document paths on the remarkable to pull from
     """
 
-    assert if_exists in ["skip", "overwrite"]
+    assert args.if_exists in ["skip", "overwrite"]
 
-    destination_directory = pathlib.Path(destination).absolute() if destination is not None else pathlib.Path.cwd()
+    if args.destination is None:
+        destination_directory = pathlib.Path.cwd()
+    else:
+        destination_directory = pathlib.Path(args.destination).absolute()
     if not destination_directory.exists():
         print("Output directory non-existing, exiting.", file=sys.stderr)
 
     anchors = []
-    for doc in documents:
+    for doc in args.documents:
         *parents, target = doc.split('/')
         local_anchor = None
         if parents:
@@ -712,12 +715,12 @@ try:
 
     retrieve_metadata()
     if args.mode == 'push':
-        push_to_remarkable(**vars(args))
+        push_to_remarkable()
     elif args.mode == 'pull':
-        pull_from_remarkable(**vars(args))
+        pull_from_remarkable()
     elif args.mode == 'backup':
         args.documents = get_toplevel_files()
-        pull_from_remarkable(**vars(args))
+        pull_from_remarkable()
 finally:
     if ssh_connection is not None:
         ssh_connection.terminate()
