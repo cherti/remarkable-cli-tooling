@@ -78,13 +78,13 @@ elif args.mode == '-':
     args.mode = 'pull'
 
 
-ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile} root@{args.ssh_destination}'
+ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile}'
 
 def ssh(arg,dry=False):
     if args.verbosity >= 1:
-        print(f'{ssh_command} {arg}')
+        print(f'{ssh_command} root@{args.ssh_destination} {arg}')
     if not dry:
-        return subprocess.getoutput(f'{ssh_command} {arg}')
+        return subprocess.getoutput(f'{ssh_command} root@{args.ssh_destination} {arg}')
 
 
 class FileCollision(Exception):
@@ -637,9 +637,16 @@ def push_to_remarkable():
                 print(f' --> Payload data can be found in {args.prepdir}')
                 return
 
+        command = f'rsync -av --info=progress2 -e "{ssh_command}"'
+        if args.dryrun:
+            command += " -n "
+        if args.if_does_not_exist == "delete":
+            command += " --delete "
+        command += f'{args.prepdir}/ root@{args.ssh_destination}:.local/share/remarkable/xochitl/'
+        print(f"running: {command}")
+        subprocess.run(command, shell=True)
+
         if not args.dryrun:
-            for f in tqdm.tqdm(os.listdir(args.prepdir)):
-                subprocess.call(f'scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -q {args.prepdir}/{f} root@{args.ssh_destination}:.local/share/remarkable/xochitl/{f}', shell=True)
             ssh(f'systemctl restart xochitl')
 
     finally:
@@ -694,7 +701,7 @@ def pull_from_remarkable():
 
 ssh_connection = None
 try:
-    ssh_connection = subprocess.Popen(f'{ssh_command} -o ConnectTimeout=1 -M -N -q ', shell=True)
+    ssh_connection = subprocess.Popen(f'{ssh_command} root@{args.ssh_destination} -o ConnectTimeout=1 -M -N -q ', shell=True)
 
     # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
     checkmsg = ssh('"/bin/true"')
