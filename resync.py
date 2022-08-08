@@ -16,7 +16,7 @@ import io
 import tqdm
 from copy import deepcopy
 
-default_prepdir = tempfile.mkdtemp()
+default_prepdir = tempfile.mkdtemp(prefix="resync")
 
 ssh_socketfile = '/tmp/remarkable-push.socket'
 
@@ -535,6 +535,8 @@ def construct_node_tree_from_disk(basepath, parent=None):
     this recursively constructs the document tree based on the top-level
     document/folder data structure on disk that we put in initially
     """
+    if args.verbosity >= 1:
+        print(f"scanning {basepath}")
     path = pathlib.Path(basepath)
     if path.is_dir():
         node = Folder(path.name, parent=parent)
