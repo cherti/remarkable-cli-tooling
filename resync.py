@@ -110,7 +110,7 @@ def gen_did():
     generates a uuid according to necessities (and marks it if desired for debugging and such)
     """
     did = str(uuid.uuid4())
-    did =  'f'*8 + did[8:]  # for debugging purposes
+    # did =  'f'*8 + did[8:]  # for debugging purposes
     return did
 
 
