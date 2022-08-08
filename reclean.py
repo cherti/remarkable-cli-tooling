@@ -6,9 +6,8 @@ import argparse
 import subprocess
 import tempfile
 import pathlib
+import io
 import tqdm
-
-default_prepdir = tempfile.mkdtemp()
 
 ssh_socketfile = '/tmp/remarkable-push.socket'
 
@@ -24,29 +23,113 @@ parser.add_argument('-n', '--dry-run',
                     action='store_true',
                     default=False,
                     help="Don't actually clean files, just show what would be done")
+parser.add_argument('-v', dest='verbosity', action='count', default=0,
+                    help='verbosity level')
 
 args = parser.parse_args()
 
-ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile} root@{args.ssh_destination}'
+
+ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile}'
 
 def ssh(arg,dry=False):
-    if dry:
-        print(f'{ssh_command} {arg}')
-    else:
-        return subprocess.getoutput(f'{ssh_command} {arg}')
+    if args.verbosity >= 1:
+        print(f'{ssh_command} root@{args.ssh_destination} {arg}')
+    if not dry:
+        return subprocess.getoutput(f'{ssh_command} root@{args.ssh_destination} {arg}')
+
+
+# from https://stackoverflow.com/questions/6886283/how-i-can-i-lazily-read-multiple-json-values-from-a-file-stream-in-python
+def stream_read_json(f):
+    start_pos = 0
+    while True:
+        try:
+            obj = json.load(f)
+            yield obj
+            return
+        except json.JSONDecodeError as e:
+            f.seek(start_pos)
+            json_str = f.read(e.pos)
+            if json_str == '':
+                return
+            obj = json.loads(json_str)
+            start_pos += e.pos
+            yield obj
+
+
+metadata_by_uuid = {}
+metadata_by_name = {}
+metadata_by_parent = {}
+metadata_by_name_and_parent = {}
+
+def retrieve_metadata():
+    """
+    retrieves all metadata from the device
+    """
+    print("retrieving metadata...")
+
+    paths = ssh(f'"ls -1 .local/share/remarkable/xochitl/*.metadata"').split("\n")
+    with io.StringIO(ssh(f'"cat .local/share/remarkable/xochitl/*.metadata"')) as f:
+        for path, metadata in tqdm.tqdm(zip(paths, stream_read_json(f)), total=len(paths)):
+            path = pathlib.Path(path)
+            if metadata['deleted'] or metadata['parent'] == 'trash':
+                continue
+            # metadata["uuid"] = path.stem
+            uuid = path.stem
+            metadata_by_uuid[uuid]                    = metadata
+
+            if metadata["visibleName"] not in metadata_by_name:
+                metadata_by_name[metadata["visibleName"]] = dict()
+            metadata_by_name[metadata["visibleName"]][uuid] = metadata
+
+            if metadata["parent"] not in metadata_by_parent:
+                metadata_by_parent[metadata["parent"]] = dict()
+            metadata_by_parent[metadata["parent"]][uuid] = metadata
+
+            if (metadata["visibleName"], metadata["parent"]) in metadata_by_name_and_parent:
+                raise FileCollision(f'Same file name {metadata["visibleName"]} under the same parent, not supported! Remove the file!')
+            metadata_by_name_and_parent[(metadata["visibleName"], metadata["parent"])] = (uuid, metadata)
+    pass
 
 
 def get_metadata_by_uuid(u):
     """
     retrieves metadata for a given document identified by its uuid
     """
-    raw_metadata = ssh(f'"cat ~/.local/share/remarkable/xochitl/{u}.metadata"')
-    try:
-        metadata = json.loads(raw_metadata)
-        return metadata
-
-    except json.decoder.JSONDecodeError:
+    if u in metadata_by_uuid:
+        return metadata_by_uuid[u]
+    else:
         return None
+
+
+def get_metadata_by_name(name):
+    """
+    retrieves metadata for all given documents that have the given name set as visibleName
+    """
+    if name in metadata_by_name:
+        return metadata_by_name[name]
+    else:
+        return None
+
+
+def get_metadata_by_parent(parent):
+    """
+    retrieves metadata for all given documents that have the given parent
+    """
+    if parent in metadata_by_parent:
+        return metadata_by_parent[parent]
+    else:
+        return {}
+
+
+def get_metadata_by_name_and_parent(name, parent):
+    """
+    retrieves metadata for all given documents that have the given parent
+    """
+    if (name, parent) in metadata_by_name_and_parent:
+        return metadata_by_name_and_parent[(name, parent)]
+    else:
+        return None
+
 
 
 #################################
@@ -57,16 +140,13 @@ def get_metadata_by_uuid(u):
 
 def cleanup_deleted():
 
-    document_metadata = ssh(f'"ls -1 ~/.local/share/remarkable/xochitl/*.metadata"')
-    metadata_uuids = set([pathlib.Path(d).stem for d in document_metadata.split('\n')])
+    metadata_uuids = set(metadata_by_uuid.keys())
 
     deleted_uuids = []
     limit = 10
-    for u in tqdm.tqdm(metadata_uuids):
-        metadata = get_metadata_by_uuid(u)
-        if metadata is not None:
-            if metadata['deleted']:
-                deleted_uuids.append(u)
+    for u, metadata in tqdm.tqdm(metadata_by_uuid.items()):
+        if metadata['deleted']:
+            deleted_uuids.append(u)
 
     if len(deleted_uuids) == 0:
         print('No deleted files found.')
@@ -76,7 +156,7 @@ def cleanup_deleted():
             for u in deleted_uuids:
                 ssh("rm -r ~/.local/share/remarkable/xochitl/{u}*", dry=args.dryrun)
 
-    return metadata_uuids
+    return
 
 
 #################################
@@ -85,53 +165,29 @@ def cleanup_deleted():
 #
 #################################
 
-def cleanup_orphaned(metadata_uuids):
-    all_document_ls = ssh(f'"ls -1 ~/.local/share/remarkable/xochitl"')
-    all_document_files = [pathlib.Path(p) for p in all_document_ls.split('\n')]
-    all_uuids = set([d.stem for d in all_document_files])
-
-    orphaned_file_stems = all_uuids.difference(metadata_uuids)
-
-    if len(orphaned_file_stems) > 0:
-        decision = input(f"Clear {len(orphaned_file_stems)} orphaned files that don't have metadata associated with them? [Y/n]")
+def cleanup_orphaned():
+    if args.dryrun:
+        ssh('"for f in $(ls -1 ~/.local/share/remarkable/xochitl) ; do stem=${$(basename $f)%%.*}; if ! [ -e $stem.metadata ] ; then echo rm $stem.* ; fi ; done"')
     else:
-        decision = 'n'
+        ssh('"for f in $(ls -1 ~/.local/share/remarkable/xochitl) ; do stem=${$(basename $f)%%.*}; if ! [ -e $stem.metadata ] ; then rm $stem.* ; fi ; done"')
 
-    if decision in ['', 'y', 'Y']:
-
-        # now let's make sure all our orphaned nodes are actually unambiguous
-        orphan_deletion_candidates = []
-        for ofs in orphaned_file_stems:
-            # get all files that would match our ofs* deletion pattern later, and their stems
-            deletion_candidates = [d for d in all_document_files if d.name.startswith(ofs)]
-            orphan_stems = set([d.stem for d in deletion_candidates])
-
-            # if we didn't mismatch anything, i.e. having a file with stem 'a' and matching all uuids 'a*',
-            # we only have one orphan stem in the set. Otherwise we have an ambiguity and leave fixing to the user.
-            if len(orphan_stems) > 1:
-                print(f'~/.local/share/remarkable/xochitl/{ofs}* has no metadata, but matches more than one document or file. Ignoring this, you will have to check this manually.')
-            else:
-                orphan_deletion_candidates.append(ofs)
-
-
-        for of in orphan_deletion_candidates:
-            ssh(f'\'rm "/home/root/.local/share/remarkable/xochitl/{of}"*\'', dry=args.dryrun)
 
 
 
 ssh_connection = None
 try:
-    ssh_connection = subprocess.Popen(f'{ssh_command} -o ConnectTimeout=1 -M -N -q ', shell=True)
+    ssh_connection = subprocess.Popen(f'{ssh_command} root@{args.ssh_destination} -o ConnectTimeout=1 -M -N -q ', shell=True)
 
     # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
-    checkmsg = ssh("/bin/true")
+    checkmsg = ssh('"/bin/true"')
     if checkmsg != "":
         print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
         print(checkmsg)
         sys.exit(255)
 
-    metadata_uuids = cleanup_deleted()
-    cleanup_orphaned(metadata_uuids)
+    retrieve_metadata()
+    cleanup_deleted()
+    cleanup_orphaned()
 
 finally:
     if ssh_connection is not None:
