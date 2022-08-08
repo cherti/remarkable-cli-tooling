@@ -639,14 +639,14 @@ def push_to_remarkable():
                 print(f' --> Payload data can be found in {args.prepdir}')
                 return
 
-        command = f'rsync -av --info=progress2 -e "{ssh_command}"'
+        command = f'rsync -a --info=progress2 -e "{ssh_command}" '
         if args.dryrun:
             command += " -n "
         if args.if_does_not_exist == "delete":
             command += " --delete "
-        command += f'{args.prepdir}/ root@{args.ssh_destination}:.local/share/remarkable/xochitl/'
+        command += f' {args.prepdir}/ root@{args.ssh_destination}:.local/share/remarkable/xochitl/ '
         print(f"running: {command}")
-        subprocess.run(command, shell=True)
+        subprocess.run(command, shell=True, check=True)
 
         if not args.dryrun:
             ssh(f'systemctl restart xochitl')
