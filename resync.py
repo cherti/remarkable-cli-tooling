@@ -14,6 +14,7 @@ import urllib.request
 import re
 import io
 import tqdm
+import ipaddress
 
 default_prepdir = tempfile.mkdtemp(prefix="resync")
 
@@ -76,14 +77,22 @@ if args.mode == '+':
 elif args.mode == '-':
     args.mode = 'pull'
 
+try:
+    # verify ssh_destination is a valid IP address string
+    _ = ipaddress.ip_address(args.ssh_destination)
+    args.ssh_destination = "root@"+args.ssh_destination
+except ValueError as e:
+    print(f"Assuming {args.ssh_destination} is a host in SSH config")
+    pass
+
 
 ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile}'
 
 def ssh(arg,dry=False):
     if args.verbosity >= 1:
-        print(f'{ssh_command} root@{args.ssh_destination} {arg}')
+        print(f'{ssh_command} {args.ssh_destination} {arg}')
     if not dry:
-        return subprocess.getoutput(f'{ssh_command} root@{args.ssh_destination} {arg}')
+        return subprocess.getoutput(f'{ssh_command} {args.ssh_destination} {arg}')
 
 
 class FileCollision(Exception):
@@ -643,7 +652,7 @@ def push_to_remarkable():
             command += " -n "
         if args.if_does_not_exist == "delete":
             command += " --delete "
-        command += f' {args.prepdir}/ root@{args.ssh_destination}:.local/share/remarkable/xochitl/ '
+        command += f' {args.prepdir}/ {args.ssh_destination}:.local/share/remarkable/xochitl/ '
         print(f"running: {command}")
         subprocess.run(command, shell=True, check=True)
 
@@ -702,7 +711,7 @@ def pull_from_remarkable():
 
 ssh_connection = None
 try:
-    ssh_connection = subprocess.Popen(f'{ssh_command} root@{args.ssh_destination} -o ConnectTimeout=1 -M -N -q ', shell=True)
+    ssh_connection = subprocess.Popen(f'{ssh_command} {args.ssh_destination} -o ConnectTimeout=1 -M -N -q ', shell=True)
 
     # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
     checkmsg = ssh('"/bin/true"')

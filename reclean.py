@@ -8,6 +8,7 @@ import tempfile
 import pathlib
 import io
 import tqdm
+import ipaddress
 
 ssh_socketfile = '/tmp/remarkable-push.socket'
 
@@ -28,14 +29,21 @@ parser.add_argument('-v', dest='verbosity', action='count', default=0,
 
 args = parser.parse_args()
 
+try:
+    # verify ssh_destination is a valid IP address string
+    _ = ipaddress.ip_address(args.ssh_destination)
+    args.ssh_destination = "root@"+args.ssh_destination
+except ValueError as e:
+    print(f"Assuming {args.ssh_destination} is a host in SSH config")
+    pass
 
 ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa -S {ssh_socketfile}'
 
 def ssh(arg,dry=False):
     if args.verbosity >= 1:
-        print(f'{ssh_command} root@{args.ssh_destination} {arg}')
+        print(f'{ssh_command} {args.ssh_destination} {arg}')
     if not dry:
-        return subprocess.getoutput(f'{ssh_command} root@{args.ssh_destination} {arg}')
+        return subprocess.getoutput(f'{ssh_command} {args.ssh_destination} {arg}')
 
 
 # from https://stackoverflow.com/questions/6886283/how-i-can-i-lazily-read-multiple-json-values-from-a-file-stream-in-python
@@ -176,7 +184,7 @@ def cleanup_orphaned():
 
 ssh_connection = None
 try:
-    ssh_connection = subprocess.Popen(f'{ssh_command} root@{args.ssh_destination} -o ConnectTimeout=1 -M -N -q ', shell=True)
+    ssh_connection = subprocess.Popen(f'{ssh_command} {args.ssh_destination} -o ConnectTimeout=1 -M -N -q ', shell=True)
 
     # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
     checkmsg = ssh('"/bin/true"')
