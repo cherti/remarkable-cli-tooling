@@ -14,7 +14,6 @@ import urllib.request
 import re
 import io
 import tqdm
-from copy import deepcopy
 
 default_prepdir = tempfile.mkdtemp(prefix="resync")
 
