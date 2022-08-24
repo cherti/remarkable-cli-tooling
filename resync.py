@@ -743,11 +743,18 @@ def cleanup_deleted():
 
 def cleanup_orphaned():
     """remove pdfs that lack metadata"""
-    if args.dryrun:
-        ssh('"for f in $(ls -1 ~/.local/share/remarkable/xochitl) ; do stem=${$(basename $f)%%.*}; if ! [ -e $stem.metadata ] ; then echo rm $stem.* ; fi ; done"')
+    files = ssh(f"ls -1 {xochitl_dir} | while read f ; do stem=${{f%%.*}} ; if ! [ -e {xochitl_dir}/$stem.metadata ] ; then echo $f ; fi ; done")
+    l = len(files.split("\n"))
+    if l == 1:
+        print('No orphan files found.')
+    elif args.dryrun:
+        if args.verbosity >= 1:
+            print(files)
     else:
-        if ask(f'Clean up orphaned pdfs?'):
-            ssh('"for f in $(ls -1 ~/.local/share/remarkable/xochitl) ; do stem=${$(basename $f)%%.*}; if ! [ -e $stem.metadata ] ; then rm $stem.* ; fi ; done"')
+        if args.verbosity >= 1:
+            print(files)
+        if ask(f'Clean up {l-1} orphaned files?'):
+            ssh(f"ls -1 {xochitl_dir} | while read f ; do stem=${{f%%.*}} ; if ! [ -e {xochitl_dir}/$stem.metadata ] ; then rm {xochitl_dir}/$f ; fi ; done")
 
 
 ssh_connection = None
