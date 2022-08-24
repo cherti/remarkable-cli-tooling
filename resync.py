@@ -3,6 +3,7 @@
 import sys
 import os
 import time
+import datetime
 import json
 import shutil
 import argparse
@@ -74,6 +75,7 @@ parser.add_argument('mode', type=str, choices=["push","pull","backup","+","-","c
                           "\n           * clear the files in Trash"
                           "\n           * remove the orphaned files"
                           "\n           * remove empty directory"
+                          "\n           * detect/select/remove duplicates"
                           "\n           We ask before performing each step unless -y|--yes."))
 
 parser.add_argument('documents', metavar='documents', type=str, nargs='*',
@@ -297,7 +299,8 @@ def fullpath(metadata):
     if ("parent" not in metadata) or (metadata["parent"] == ""):
         return "/" + metadata["visibleName"]
     else:
-        parent = metadata_by_uuid[metadata["parent"]]
+        parent_uuid = metadata["parent"]
+        parent = metadata_by_uuid[parent_uuid]
         return fullpath(parent) + "/" + metadata["visibleName"]
 
 
@@ -778,6 +781,62 @@ def cleanup_orphaned():
             print(files)
         if ask(f'Clean up {l-1} orphaned files?'):
             ssh(f"ls -1 {xochitl_dir} | while read f ; do stem=${{f%%.*}} ; if ! [ -e {xochitl_dir}/$stem.metadata ] ; then rm {xochitl_dir}/$f ; fi ; done")
+
+
+def cleanup_duplicates():
+    """detect, select, remove duplicates. If there are notes, merge them."""
+
+    print("computing md5sum on remarkable device... it could take some time.")
+    results = ssh(f'md5sum {xochitl_dir}/*.pdf').split("\n")
+    database = dict()
+    duplicates = set()
+    for line in results:
+        md5, filename = line.split()
+        u = os.path.basename(os.path.splitext(filename)[0])
+        if md5 not in database:
+            database[md5] = []
+        database[md5].append(u)
+        if len(database[md5])>=2:
+            duplicates.add(md5)
+
+    deleted_uuids = []
+    for md5 in duplicates:
+        print(f"found {len(database[md5])} duplicates for md5sum {md5}:")
+        try:
+            for i, u in enumerate(database[md5]):
+                metadata = get_metadata_by_uuid(u)
+                lastmodified = datetime.datetime.fromtimestamp(int(metadata["lastModified"])//1000)
+                print(f"duplicate {i}, modified {lastmodified}, {fullpath(metadata)}:")
+                # print(json.dumps(metadata,indent=2))
+        except KeyError:
+            print("it should not happen...")
+            continue
+
+        try:
+            i = int(input("which one to keep? [number]: "))
+        except ValueError:
+            print("input parsing error. ignore this duplicate for now.")
+            continue
+
+        try:
+            keep = database[md5][i]
+        except KeyError:
+            print("you must have an out of range number")
+            continue
+        rest = set(database[md5]) - {keep}
+        deleted_uuids.extend(rest)
+
+    for u in deleted_uuids:
+        remove_uuid(u)
+
+    if len(deleted_uuids) == 0:
+        print('No empty directories found.')
+    else:
+        if ask(f'Clean up {len(deleted_uuids)} duplicates?'):
+            ssh(f"rm -r {xochitl_dir}/{{{','.join(deleted_uuids)}}}*", dry=args.dryrun)
+
+    return
+
 
 
 def cleanup_emptydir():
