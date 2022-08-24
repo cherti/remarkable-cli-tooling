@@ -20,6 +20,8 @@ default_prepdir = tempfile.mkdtemp(prefix="resync")
 
 ssh_socketfile = '/tmp/remarkable-push.socket'
 
+xochitl_dir = '~/.local/share/remarkable/xochitl'
+
 parser = argparse.ArgumentParser(description='Push and pull files to and from your reMarkable',
                                  formatter_class=argparse.RawTextHelpFormatter)
 
@@ -185,8 +187,8 @@ def retrieve_metadata():
     """
     print("retrieving metadata...")
 
-    paths = ssh(f'ls -1 .local/share/remarkable/xochitl/*.metadata').split("\n")
-    with io.StringIO(ssh(f'cat .local/share/remarkable/xochitl/*.metadata')) as f:
+    paths = ssh(f'ls -1 {xochitl_dir}/*.metadata').split("\n")
+    with io.StringIO(ssh(f'cat {xochitl_dir}/*.metadata')) as f:
         for path, metadata in tqdm.tqdm(zip(paths, stream_read_json(f)), total=len(paths)):
             path = pathlib.Path(path)
             if metadata['deleted'] or metadata['parent'] == 'trash':
@@ -666,7 +668,7 @@ def push_to_remarkable():
             command += " -n "
         if args.if_does_not_exist == "delete":
             command += " --delete "
-        command += f' {args.prepdir}/ {args.host}:.local/share/remarkable/xochitl/ '
+        command += f' {args.prepdir}/ {args.host}:{xochitl_dir}/ ' # note: the last / is important
         print(f"running: {command}")
         subprocess.run(command, shell=True, check=True)
 
@@ -736,7 +738,7 @@ def cleanup_deleted():
     else:
         if ask(f'Clean up {len(deleted_uuids)} deleted files?'):
             for u in deleted_uuids:
-                ssh("rm -r ~/.local/share/remarkable/xochitl/{u}*", dry=args.dryrun)
+                ssh(f"rm -r {xochitl_dir}/{u}*", dry=args.dryrun)
 
     return
 
