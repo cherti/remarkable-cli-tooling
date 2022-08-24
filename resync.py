@@ -61,11 +61,12 @@ parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir'
 parser.add_argument('--debug', dest='debug', action='store_true', default=False,
                     help="Render documents, but don't copy to remarkable.")
 
-parser.add_argument('mode', type=str, choices=["push","pull","backup","+","-"],
+parser.add_argument('mode', type=str, choices=["push","pull","backup","+","-","clean"],
                     help=("Specifies the transfer mode."
-                        "\n  push, +: push documents from this machine to the reMarkable"
-                        "\n  pull, -: pull documents from the reMarkable to this machine"
-                        "\n  backup:  pull all files from the remarkable to this machine (excludes still apply)"))
+                          "\n  push, +: push documents from this machine to the reMarkable"
+                          "\n  pull, -: pull documents from the reMarkable to this machine"
+                          "\n  backup:  pull all files from the remarkable to this machine (excludes still apply)"
+                          "\n  clean:   clear the files in a trash, and remove the orphaned files"))
 
 parser.add_argument('documents', metavar='documents', type=str, nargs='*',
                     help='Documents and folders to be pushed to the reMarkable')
@@ -708,6 +709,31 @@ def pull_from_remarkable():
             a.download(targetdir=destination_directory)
 
 
+def cleanup_deleted():
+
+    deleted_uuids = []
+    limit = 10
+    for u, metadata in tqdm.tqdm(metadata_by_uuid.items()):
+        if metadata['deleted']:
+            deleted_uuids.append(u)
+
+    if len(deleted_uuids) == 0:
+        print('No deleted files found.')
+    else:
+        decision = input(f'Clean up {len(deleted_uuids)} deleted files? [Y/n]')
+        if decision in ['', 'y', 'Y']:
+            for u in deleted_uuids:
+                ssh("rm -r ~/.local/share/remarkable/xochitl/{u}*", dry=args.dryrun)
+
+    return
+
+
+def cleanup_orphaned():
+    if args.dryrun:
+        ssh('"for f in $(ls -1 ~/.local/share/remarkable/xochitl) ; do stem=${$(basename $f)%%.*}; if ! [ -e $stem.metadata ] ; then echo rm $stem.* ; fi ; done"')
+    else:
+        ssh('"for f in $(ls -1 ~/.local/share/remarkable/xochitl) ; do stem=${$(basename $f)%%.*}; if ! [ -e $stem.metadata ] ; then rm $stem.* ; fi ; done"')
+
 
 ssh_connection = None
 try:
@@ -728,6 +754,10 @@ try:
     elif args.mode == 'backup':
         args.documents = get_toplevel_files()
         pull_from_remarkable()
+    elif args.mode == 'clean':
+        cleanup_deleted()
+        cleanup_orphaned()
+
 finally:
     if ssh_connection is not None:
         ssh_connection.terminate()

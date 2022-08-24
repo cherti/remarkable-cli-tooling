@@ -20,8 +20,7 @@ The latest version of this repository is typically tailored to the latest versio
 
 ## Summary
 
-  * `resync.py`: push documents to or pull documents from the reMarkable, or to pull everything for backup purposes
-  * `reclean.py`: cleanup deleted documents on the reMarkable (necessary if the cloud is not used)
+  * `resync.py`: push, pull, backup, clean documents on the reMarkable.
   * `resign.py`: temporarily transfer documents to the reMarkable to put a signature, and pull them again once it's done
 
 ## resync.py
