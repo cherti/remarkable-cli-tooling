@@ -54,7 +54,7 @@ parser.add_argument('--if-does-not-exist',
 parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', default=[],
                     help='exclude a pattern from transfer (must be Python-regex)')
 
-parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>',
+parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='host', metavar='<IP or hostname>',
                     help='remote address of the reMarkable')
 parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir,
                     help='custom directory to render files to-be-upload')
@@ -84,11 +84,11 @@ elif args.mode == '-':
     args.mode = 'pull'
 
 try:
-    # verify ssh_destination is a valid IP address string
-    _ = ipaddress.ip_address(args.ssh_destination)
-    args.ssh_destination = "root@"+args.ssh_destination
+    # verify host is a valid IP address string
+    _ = ipaddress.ip_address(args.host)
+    args.host = "root@"+args.host
 except ValueError as e:
-    print(f"Assuming {args.ssh_destination} is a host in SSH config")
+    print(f"Assuming {args.host} is a host in SSH config")
     pass
 
 
@@ -96,9 +96,9 @@ ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh
 
 def ssh(arg,dry=False):
     if args.verbosity >= 1:
-        print(f'{ssh_command} {args.ssh_destination} {arg}')
+        print(f'{ssh_command} {args.host} {arg}')
     if not dry:
-        return subprocess.getoutput(f'{ssh_command} {args.ssh_destination} {arg}')
+        return subprocess.getoutput(f'{ssh_command} {args.host} {arg}')
 
 
 class FileCollision(Exception):
@@ -426,7 +426,7 @@ class Document(Node):
                     logmsg(0, f"File {filename} already exists, skipping")
                 elif if_exists == "overwrite":
                     try:
-                        resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
+                        resp = urllib.request.urlopen(f'http://{args.host}/download/{self.id}/placeholder')
                         with open(filename, 'wb') as f:
                             f.write(resp.read())
                     except urllib.error.URLError as e:
@@ -666,7 +666,7 @@ def push_to_remarkable():
             command += " -n "
         if args.if_does_not_exist == "delete":
             command += " --delete "
-        command += f' {args.prepdir}/ {args.ssh_destination}:.local/share/remarkable/xochitl/ '
+        command += f' {args.prepdir}/ {args.host}:.local/share/remarkable/xochitl/ '
         print(f"running: {command}")
         subprocess.run(command, shell=True, check=True)
 
@@ -759,7 +759,7 @@ def cleanup_orphaned():
 
 ssh_connection = None
 try:
-    ssh_connection = subprocess.Popen(f'{ssh_command} {args.ssh_destination} -o ConnectTimeout=1 -M -N -q ', shell=True)
+    ssh_connection = subprocess.Popen(f'{ssh_command} {args.host} -o ConnectTimeout=1 -M -N -q ', shell=True)
 
     # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
     checkmsg = ssh('"/bin/true"')
