@@ -96,9 +96,9 @@ ssh_command = f'ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh
 
 def ssh(arg,dry=False):
     if args.verbosity >= 1:
-        print(f'{ssh_command} {args.host} {arg}')
+        print(f'{ssh_command} {args.host} \'{arg}\'')
     if not dry:
-        return subprocess.getoutput(f'{ssh_command} {args.host} {arg}')
+        return subprocess.getoutput(f'{ssh_command} {args.host} \'{arg}\'')
 
 
 class FileCollision(Exception):
@@ -185,8 +185,8 @@ def retrieve_metadata():
     """
     print("retrieving metadata...")
 
-    paths = ssh(f'"ls -1 .local/share/remarkable/xochitl/*.metadata"').split("\n")
-    with io.StringIO(ssh(f'"cat .local/share/remarkable/xochitl/*.metadata"')) as f:
+    paths = ssh(f'ls -1 .local/share/remarkable/xochitl/*.metadata').split("\n")
+    with io.StringIO(ssh(f'cat .local/share/remarkable/xochitl/*.metadata')) as f:
         for path, metadata in tqdm.tqdm(zip(paths, stream_read_json(f)), total=len(paths)):
             path = pathlib.Path(path)
             if metadata['deleted'] or metadata['parent'] == 'trash':
@@ -762,7 +762,7 @@ try:
     ssh_connection = subprocess.Popen(f'{ssh_command} {args.host} -o ConnectTimeout=1 -M -N -q ', shell=True)
 
     # quickly check if we actually have a functional ssh connection (might not be the case right after an update)
-    checkmsg = ssh('"/bin/true"')
+    checkmsg = ssh("/bin/true")
     if checkmsg != "":
         print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
         print(checkmsg)
