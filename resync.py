@@ -759,10 +759,13 @@ def cleanup_deleted():
 
     if len(deleted_uuids) == 0:
         print('No deleted files found.')
+        return False
     else:
         if ask(f'Clean up {len(deleted_uuids)} deleted files?'):
             ssh(f"rm -r {xochitl_dir}/{{{','.join(deleted_uuids)}}}*", dry=args.dryrun)
-    return
+            return True
+        else:
+            return False
 
 
 def cleanup_orphaned():
@@ -829,12 +832,13 @@ def cleanup_duplicates():
 
     if len(deleted_uuids) == 0:
         print('No empty directories found.')
+        return False
     else:
         if ask(f'Clean up {len(deleted_uuids)} duplicates?'):
             ssh(f"rm -r {xochitl_dir}/{{{','.join(deleted_uuids)}}}*", dry=args.dryrun)
-
-    return
-
+            return True
+        else:
+            return False
 
 
 def cleanup_emptydir():
@@ -862,11 +866,13 @@ def cleanup_emptydir():
 
     if len(deleted_uuids) == 0:
         print('No empty directories found.')
+        return False
     else:
         if ask(f'Clean up {len(deleted_uuids)} empty directories?'):
             ssh(f"rm -r {xochitl_dir}/{{{','.join(deleted_uuids)}}}*", dry=args.dryrun)
-
-    return
+            return True
+        else:
+            return False
 
 
 ssh_connection = None
@@ -889,10 +895,11 @@ try:
         args.documents = get_toplevel_files()
         pull_from_remarkable()
     elif args.mode == 'clean':
-        cleanup_deleted()
+        r1 = cleanup_deleted()
         cleanup_orphaned()
-        cleanup_emptydir()
-        if not args.dryrun:
+        r2 = cleanup_duplicates()
+        r3 = cleanup_emptydir()
+        if not args.dryrun and (r1 or r2 or r3):
             ssh(f'systemctl restart xochitl')
 
 finally:
