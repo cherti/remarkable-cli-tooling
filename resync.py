@@ -73,6 +73,7 @@ parser.add_argument('mode', type=str, choices=["push","pull","backup","+","-","c
                           "\n  clean:   performs a number of cleaning operations."
                           "\n           * clear the files in Trash"
                           "\n           * remove the orphaned files"
+                          "\n           * remove empty directory"
                           "\n           We ask before performing each step unless -y|--yes."))
 
 parser.add_argument('documents', metavar='documents', type=str, nargs='*',
@@ -251,6 +252,18 @@ def get_metadata_by_name_and_parent(name, parent):
         return None
 
 
+
+def remove_uuid(u):
+    """note --- not a complete implementation. does not remove from _name and _name_and_parent."""
+    metadata = metadata_by_uuid[u]
+    del metadata_by_uuid[u]
+    if ("parent" in metadata) and (metadata["parent"] != ""):
+        siblings = metadata_by_parent[metadata["parent"]]
+        del siblings[u]
+        if not metadata_by_parent[metadata["parent"]]:
+            del metadata_by_parent[metadata["parent"]]
+
+
 def curb_tree(node, excludelist):
     """
     removes nodes from a tree based on a list of exclude patterns;
@@ -278,6 +291,14 @@ def ask(msg):
         return True
     else:
         return input(msg+" [Enter,y,Y / n]") in ['', 'y', 'Y']
+
+
+def fullpath(metadata):
+    if ("parent" not in metadata) or (metadata["parent"] == ""):
+        return "/" + metadata["visibleName"]
+    else:
+        parent = metadata_by_uuid[metadata["parent"]]
+        return fullpath(parent) + "/" + metadata["visibleName"]
 
 
 #################################
@@ -759,6 +780,38 @@ def cleanup_orphaned():
             ssh(f"ls -1 {xochitl_dir} | while read f ; do stem=${{f%%.*}} ; if ! [ -e {xochitl_dir}/$stem.metadata ] ; then rm {xochitl_dir}/$f ; fi ; done")
 
 
+def cleanup_emptydir():
+    """remove empty directory"""
+
+    deleted_uuids = []
+    empty_found = True
+    iteration = 1
+    while empty_found:
+        print(f"iteration {iteration}")
+        iteration += 1
+        empty_found = False
+        _deleted_uuids = []
+        for u, metadata in metadata_by_uuid.items():
+            if metadata['type'] != "CollectionType":
+                continue
+            if u not in metadata_by_parent:
+                print(f"empty: {fullpath(metadata)}")
+                _deleted_uuids.append(u)
+                empty_found = True
+        # do not remove entries within a loop !
+        for u in _deleted_uuids:
+            remove_uuid(u)
+        deleted_uuids.extend(_deleted_uuids)
+
+    if len(deleted_uuids) == 0:
+        print('No empty directories found.')
+    else:
+        if ask(f'Clean up {len(deleted_uuids)} empty directories?'):
+            ssh(f"rm -r {xochitl_dir}/{{{','.join(deleted_uuids)}}}*", dry=args.dryrun)
+
+    return
+
+
 ssh_connection = None
 try:
     ssh_connection = subprocess.Popen(f'{ssh_command} {args.host} -o ConnectTimeout=1 -M -N -q ', shell=True)
@@ -781,6 +834,9 @@ try:
     elif args.mode == 'clean':
         cleanup_deleted()
         cleanup_orphaned()
+        cleanup_emptydir()
+        if not args.dryrun:
+            ssh(f'systemctl restart xochitl')
 
 finally:
     if ssh_connection is not None:
