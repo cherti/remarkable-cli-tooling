@@ -782,5 +782,6 @@ try:
 
 finally:
     if ssh_connection is not None:
+        print("terminating ssh connection")
         ssh_connection.terminate()
 
