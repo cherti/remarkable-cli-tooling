@@ -761,9 +761,7 @@ def cleanup_deleted():
         print('No deleted files found.')
     else:
         if ask(f'Clean up {len(deleted_uuids)} deleted files?'):
-            for u in deleted_uuids:
-                ssh(f"rm -r {xochitl_dir}/{u}*", dry=args.dryrun)
-
+            ssh(f"rm -r {xochitl_dir}/{{{','.join(deleted_uuids)}}}*", dry=args.dryrun)
     return
 
 
