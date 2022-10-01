@@ -556,7 +556,7 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
 
 		for r in root:
 			r.render(args.prepdir)
-		print(f' --> Payload data can be found in {args.prepdir}')
+		print(f' --> Payload data can be found in {args.prepdir}, if specified')
 
 	else:  # actually upload to the reMarkable
 
@@ -565,9 +565,6 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
 
 		subprocess.call(f'scp -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
 		subprocess.call(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} systemctl restart xochitl', shell=True)
-
-		if args.prepdir == default_prepdir:  # aka we created it
-			shutil.rmtree(args.prepdir)
 
 
 def pull_from_remarkable(documents, destination=None):
@@ -635,3 +632,5 @@ finally:
 	if ssh_connection is not None:
 		ssh_connection.terminate()
 		#os.remove(ssh_socketfile)
+	if os.path.exists(default_prepdir):  # we created this
+		shutil.rmtree(args.prepdir)
