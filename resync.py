@@ -12,7 +12,6 @@ import tempfile
 import pathlib
 import urllib.request
 import re
-from copy import deepcopy
 
 default_prepdir = tempfile.mkdtemp(prefix="resync-")
 
