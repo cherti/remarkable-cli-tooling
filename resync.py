@@ -483,13 +483,9 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
 		return node
 
 
-	# first, assemble the given output directory (-o) where everything shall be sorted into
-	# into our document tree representation
-
-	root   = None  # the overall root node
-	anchor = None  # the anchor to which we append new documents
-
 	if destination:
+		# first, assemble the given output directory (-o) where everything shall be sorted into
+		# into our document tree representation
 		folders = destination.split('/')
 		root = anchor = Folder(folders[0])
 
@@ -498,19 +494,22 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
 			anchor.add_child(ch)
 			anchor = ch
 
-
-	# then add the actual folders/documents to the tree at the anchor point
-	if anchor is None:
-		root = []
-		for doc in documents:
-			root.append(construct_node_tree_from_disk(doc))
-
-	else:
+		# then add the actual folders/documents to the tree at the anchor point
 		for doc in documents:
 			anchor.add_child(construct_node_tree_from_disk(doc, parent=anchor))
 
 		# make it into a 1-element list to streamline code further down
 		root = [root]
+
+	else:
+		# if no destination is supplied, make "root" a list for anchor points
+		root = []
+
+		# then add the actual folders/documents to the tree as anchor points
+		# that will show up on the top-level
+		for doc in documents:
+			root.append(construct_node_tree_from_disk(doc))
+
 
 	# apply excludes
 	curbed_roots = []
