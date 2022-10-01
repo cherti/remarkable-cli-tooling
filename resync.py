@@ -14,7 +14,7 @@ import urllib.request
 import re
 from copy import deepcopy
 
-default_prepdir = tempfile.mkdtemp()
+default_prepdir = tempfile.mkdtemp(prefix="resync-")
 
 ssh_socketfile = '/tmp/remarkable-push.socket'
 
