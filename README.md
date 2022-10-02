@@ -74,10 +74,11 @@ For the full set of options, refer to `resync.py --help`:
 	  --dry-run             Don't actually copy files, just show what would be copied (currently push only)
 	  -o <folder>, --output <folder>
 							Destination for copied files, either on or off device
-	  -s, --skip-existing-files
-							Don't copy additional versions of existing files
-	  --overwrite           Overwrite existing files with a new version (potentially destructive)
-	  --overwrite_doc_only  Overwrite the underlying file only, keep notes and such (potentially destructive)
+	  -v                    verbosity level
+	  --if-exists {skip,new,replace,replace-pdf-only}
+                        if the destination file already exists: *skip* pushing document (default); create a
+                        separate *new* separate document under the same name; *replace* document; *replace-
+                        pdf-only*: replace underlying pdf only on reMarkable, keep notes etc.
 	  -e EXCLUDE_PATTERNS [EXCLUDE_PATTERNS ...], --exclude EXCLUDE_PATTERNS [EXCLUDE_PATTERNS ...]
 							exclude a pattern from transfer (must be Python-regex)
 	  -r <IP or hostname>, --remote-address <IP or hostname>

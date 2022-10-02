@@ -23,10 +23,7 @@ parser.add_argument('--dry-run', dest='dryrun', action='store_true', default=Fal
 parser.add_argument('-o', '--output', action='store', default=None, dest='output_destination', metavar='<folder>', help='Destination for copied files, either on or off device')
 parser.add_argument('-v', dest='verbosity', action='count', default=0, help='verbosity level')
 
-existing_files_handling = parser.add_mutually_exclusive_group()
-existing_files_handling.add_argument('-s', '--skip-existing-files', dest='skip_existing_files', action='store_true', default=False, help="Don't copy additional versions of existing files")
-existing_files_handling.add_argument('--overwrite', dest='overwrite', action='store_true', default=False, help="Overwrite existing files with a new version (potentially destructive)")
-existing_files_handling.add_argument('--overwrite_doc_only', dest='overwrite_doc_only', action='store_true', default=False, help="Overwrite the underlying file only, keep notes and such (potentially destructive)")
+parser.add_argument('--if-exists', dest='conflict_behavior', choices=["skip", "new", "replace", "replace-pdf-only"], default="skip", help=("if the destination file already exists: *skip* pushing document (default); create a separate *new* separate document under the same name; *replace* document; *replace-pdf-only*: replace underlying pdf only on reMarkable, keep notes etc."))
 
 parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', type=str, help='exclude a pattern from transfer (must be Python-regex)')
 
@@ -38,9 +35,6 @@ parser.add_argument('mode', metavar='mode', type=str, help='push/+, pull/- or ba
 parser.add_argument('documents', metavar='documents', type=str, nargs='*', help='Documents and folders to be pushed to the reMarkable')
 
 args = parser.parse_args()
-
-if args.overwrite_doc_only:
-	args.overwrite = True
 
 if args.exclude_patterns is None:
 	args.exclude_patterns = []
@@ -223,9 +217,9 @@ class Node:
 			self.id = did
 			self.exists = True
 
-		elif len(filtered_metadata) > 1 and (args.skip_existing_files or args.overwrite) and args.mode == 'push':
+		elif len(filtered_metadata) > 1 and args.conflict_behavior in ['skip', 'replace', 'replace-pdf-only'] and args.mode == 'push':
 			# ok, something is still ambiguous, but for what we want to do we cannot have that.
-			# Hence, we error out here as currently the risk of breaking something is too great at this point.
+			# Hence, we error out here as the risk of breaking something is too great at this point.
 			destination_name = self.parent.name if self.parent is not None else 'toplevel'
 			msg = f"File or folder {self.name} occurs multiple times in destination {destination_name}. Situation ambiguous, cannot decide how to proceed."
 			print(msg, file=sys.stderr)
@@ -342,8 +336,8 @@ class Node:
 			else:
 				# documents we need to actually download
 				filename = self.name if self.name.lower().endswith('.pdf') else f'{self.name}.pdf'
-				if os.path.exists(filename) and not args.overwrite:
-					logmsg(0, f"File {filename} already exists, skipping (use --overwrite to pull regardless)")
+				if os.path.exists(filename) and args.conflict_behavior != 'replace':
+					logmsg(0, f"File {filename} already exists, skipping (use '--if-exists replace' to pull regardless)")
 				else:
 					try:
 						resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
@@ -440,7 +434,7 @@ def get_toplevel_files():
 ###############################
 
 
-def push_to_remarkable(documents, destination=None, overwrite=False, skip_existing=False):
+def push_to_remarkable(documents, destination=None):
 	"""
 	push a list of documents to the reMarkable
 
@@ -463,17 +457,17 @@ def push_to_remarkable(documents, destination=None, overwrite=False, skip_existi
 		elif path.is_file() and path.suffix.lower() in ['.pdf', '.epub']:
 			node = Document(path, parent=parent)
 			if node.exists:
-				if not skip_existing and not overwrite:
+				if args.conflict_behavior == 'new':
 					# if we don't skip existing files, this file gets a new document ID
 					# and becomes a new file next to the existing one
 					node.id = gen_did()
 					node.exists = False
-				elif overwrite:
+				elif args.conflict_behavior in ['replace', 'replace-pdf-only']:
 					# ok, we want to overwrite a document. We need to pretend it's not there so it gets rendered, so let's
 					# lie to our parser here, claiming there is nothing
 					node.exists = False
 					node.gets_modified = True  # and make a note to properly mark it in case of a dry run
-					if args.overwrite_doc_only:
+					if args.conflict_behavior == 'replace-pdf-only':
 						# if we only want to overwrite the document file itself, but keep everything else,
 						# we simply switch out the render function of this node to a simple document copy
 						# might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
@@ -614,7 +608,7 @@ try:
 
 
 	if args.mode == 'push':
-		push_to_remarkable(args.documents, destination=args.output_destination, overwrite=args.overwrite, skip_existing=args.skip_existing_files)
+		push_to_remarkable(args.documents, destination=args.output_destination)
 	elif args.mode == 'pull':
 		pull_from_remarkable(args.documents, destination=args.output_destination)
 	elif args.mode == 'backup':
