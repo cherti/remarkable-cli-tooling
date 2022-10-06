@@ -471,7 +471,7 @@ def push_to_remarkable(documents, destination=None):
 						# if we only want to overwrite the document file itself, but keep everything else,
 						# we simply switch out the render function of this node to a simple document copy
 						# might mess with xochitl's thumbnail-generation and other things, but overall seems to be fine
-						node.render = lambda self, prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}')
+						node.render = type(node.render)(lambda self, prepdir: shutil.copy(self.doc, f'{prepdir}/{self.id}.{self.filetype}'), node)
 
 		return node
 
