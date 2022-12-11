@@ -31,6 +31,7 @@ parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.
 parser.add_argument('-R', '--remote-http-address', action='store', default=None, dest='ssh_web_destination', metavar='<IP or hostname>', help='remote web address of the reMarkable')
 parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir, help='custom directory to render files to-be-upload')
 parser.add_argument('--debug', dest='debug', action='store_true', default=False, help="Render documents, but don't copy to remarkable.")
+parser.add_argument('--non-interactive', dest='non_interactive', action='store_true', default=False, help="Prevent SSH from asking passwords")
 
 parser.add_argument('mode', metavar='mode', type=str, help='push/+, pull/- or backup')
 parser.add_argument('documents', metavar='documents', type=str, nargs='*', help='Documents and folders to be pushed to the reMarkable')
@@ -55,6 +56,11 @@ if args.ssh_web_destination is None:
 		f"ssh -G {args.ssh_destination} |" + "awk '/^hostname / {print $2}'")
 	logmsg(1, f"ssh_web_address resolved to {args.ssh_web_destination}")
 
+# See https://stackoverflow.com/a/48607817/1133157
+batchargs = (f'-o BatchMode=yes '
+			 f'-o StrictHostKeyChecking=no '
+			 f'-o UserKnownHostsFile=/dev/null ') \
+			 if args.non_interactive else ''
 
 class FileCollision(Exception):
 	pass
@@ -601,18 +607,32 @@ def pull_from_remarkable(documents, destination=None):
 			a.download(targetdir=destination_directory)
 
 
+def check_ssh_connection()->bool:
+	p = subprocess.run(
+		f'ssh '
+		f'{batchargs}'
+		f'root@{args.ssh_destination} '
+		f'"/bin/true"',
+		shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+	if p.returncode != 0:
+		print("ssh connection does not work, verify that you can manually ssh "
+		      "into your reMarkable. ssh itself commented the situation with:")
+		print(p.stdout.decode('utf-8'))
+		return False
+	else:
+		return True
+
+
 ssh_connection = None
 try:
-	ssh_connection = subprocess.Popen(f'ssh -o ConnectTimeout=1 -M -N -q -S {ssh_socketfile} root@{args.ssh_destination}', shell=True)
+	# quickly check if we actually have a functional ssh connection (might not
+	# be the case right after an update)
+	if not check_ssh_connection():
+		exit(255)
 
-	# quickly check if we actually have a functional ssh connection (might not be the case right after an update)
-	checkmsg = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "/bin/true"')
-	if checkmsg != "":
-		print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
-		print(checkmsg)
-		ssh_connection.terminate()
-		sys.exit(255)
-
+	ssh_connection = subprocess.Popen(
+		f'ssh {batchargs} -o ConnectTimeout=1 -M -N -q '
+		f'-S {ssh_socketfile} root@{args.ssh_destination}', shell=True)
 
 	if args.mode == 'push':
 		push_to_remarkable(args.documents, destination=args.output_destination)
