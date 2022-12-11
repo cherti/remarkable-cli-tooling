@@ -28,6 +28,7 @@ parser.add_argument('--if-exists', dest='conflict_behavior', choices=["skip", "n
 parser.add_argument('-e', '--exclude', dest='exclude_patterns', action='append', type=str, help='exclude a pattern from transfer (must be Python-regex)')
 
 parser.add_argument('-r', '--remote-address', action='store', default='10.11.99.1', dest='ssh_destination', metavar='<IP or hostname>', help='remote address of the reMarkable')
+parser.add_argument('-R', '--remote-http-address', action='store', default=None, dest='ssh_web_destination', metavar='<IP or hostname>', help='remote web address of the reMarkable')
 parser.add_argument('--transfer-dir', metavar='<directory name>', dest='prepdir', type=str, default=default_prepdir, help='custom directory to render files to-be-upload')
 parser.add_argument('--debug', dest='debug', action='store_true', default=False, help="Render documents, but don't copy to remarkable.")
 
@@ -36,6 +37,10 @@ parser.add_argument('documents', metavar='documents', type=str, nargs='*', help=
 
 args = parser.parse_args()
 
+def logmsg(lvl, msg):
+	if lvl <= args.verbosity:
+		print(msg)
+
 if args.exclude_patterns is None:
 	args.exclude_patterns = []
 
@@ -43,6 +48,12 @@ if args.mode == '+':
 	args.mode = 'push'
 elif args.mode == '-':
 	args.mode = 'pull'
+
+if args.ssh_web_destination is None:
+	# Deduce the IP of SSH connection, See https://unix.stackexchange.com/a/297658
+	args.ssh_web_destination = subprocess.getoutput(
+		f"ssh -G {args.ssh_destination} |" + "awk '/^hostname / {print $2}'")
+	logmsg(1, f"ssh_web_address resolved to {args.ssh_web_destination}")
 
 
 class FileCollision(Exception):
@@ -57,10 +68,6 @@ class ShouldNeverHappenError(Exception):
 #   Helper functions
 #
 #########################
-
-def logmsg(lvl, msg):
-	if lvl <= args.verbosity:
-		print(msg)
 
 
 def gen_did():
@@ -340,7 +347,7 @@ class Node:
 					logmsg(0, f"File {filename} already exists, skipping (use '--if-exists replace' to pull regardless)")
 				else:
 					try:
-						resp = urllib.request.urlopen(f'http://{args.ssh_destination}/download/{self.id}/placeholder')
+						resp = urllib.request.urlopen(f'http://{args.ssh_web_destination}/download/{self.id}/placeholder')
 						with open(filename, 'wb') as f:
 							f.write(resp.read())
 					except urllib.error.URLError as e:
