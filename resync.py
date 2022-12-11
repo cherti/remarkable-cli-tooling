@@ -652,4 +652,4 @@ finally:
 		ssh_connection.terminate()
 		#os.remove(ssh_socketfile)
 	if os.path.exists(default_prepdir):  # we created this
-		shutil.rmtree(args.prepdir)
+		shutil.rmtree(default_prepdir)
