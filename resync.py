@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from typing import Optional
+
 import sys
 import os
 import time
@@ -401,7 +403,7 @@ class Folder(Node):
 			ch.render(prepdir)
 
 
-def identify_node(name, parent=None):
+def identify_node(name:str, parent=None)->Optional[Node]:
 	"""
 	infer a node's type by name and location, and return a node object
 	in case this is unambiguously possible
