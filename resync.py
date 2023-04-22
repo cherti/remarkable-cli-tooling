@@ -109,7 +109,7 @@ def get_metadata_by_uuid(u):
 	try:
 		metadata = json.loads(raw_metadata)
 
-		if metadata['deleted'] or metadata['parent'] == 'trash':
+		if metadata.get('deleted') or metadata.get('parent') == 'trash'):
 			return None
 		else:
 			return metadata
