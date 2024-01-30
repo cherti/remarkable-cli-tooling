@@ -582,7 +582,8 @@ def pull_from_remarkable(documents, destination=None):
 	"""
 	destination_directory = pathlib.Path(destination).absolute() if destination is not None else pathlib.Path.cwd()
 	if not destination_directory.exists():
-		print("Output directory non-existing, exiting.", file=sys.stderr)
+		print(f"Output directory {destination_directory} non-existing, exiting.", file=sys.stderr)
+		sys.exit(1)
 
 	anchors = []
 	for doc in documents:
