@@ -647,10 +647,12 @@ try:
 	ssh_connection = subprocess.Popen(f'ssh -o ConnectTimeout=1 -M -N -q -S {ssh_socketfile} root@{args.ssh_destination}', shell=True)
 
 	# quickly check if we actually have a functional ssh connection (might not be the case right after an update)
-	checkmsg = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "/bin/true"')
-	if checkmsg != "":
+	p = subprocess.Popen(f'ssh {ssh_options} -S {ssh_socketfile} root@{args.ssh_destination} "/bin/true"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	p.wait()
+	if p.returncode != 0:
+		stdout, stderr = p.communicate()
 		print("ssh connection does not work, verify that you can manually ssh into your reMarkable. ssh itself commented the situation with:")
-		print(checkmsg)
+		print(stdout.decode('utf-8'), stderr.decode('utf-8'))
 		ssh_connection.terminate()
 		sys.exit(255)
 
