@@ -448,6 +448,38 @@ def get_toplevel_files():
 #
 ###############################
 
+def upload_directly(documents):
+	url = "http://10.11.99.1/upload"
+
+	toplevel_files = get_toplevel_files()
+
+	try:
+		import urllib3
+
+		http = urllib3.PoolManager()
+		failed_to_create = []
+		for f in documents:
+			if f in toplevel_files and args.conflict_behavior == 'skip':
+				logmsg(0, "skipping " + f + ", file already present")
+				continue
+
+			filename = f.split('/')[-1]
+			filecontent = open(f, 'rb').read()
+			contenttype = 'application/pdf'
+
+			logmsg(1, "uploading " + f)
+			r = http.request('POST', url, fields={'file': (filename, filecontent, contenttype)})
+			if r.status != 201:
+				logmsg(1, "upload of " + f + "failed with statuscode " + str(r.status))
+				failed_to_create.append(f)
+
+		return failed_to_create
+	except ModuleNotFoundError:
+		return documents
+	except urllib3.exceptions.MaxRetryError:
+		print(f"Upload endpoint not reachable, is the web interface enabled? (Settings > Storage > USB web interface)")
+		sys.exit(2)
+
 
 def push_to_remarkable(documents, destination=None):
 	"""
@@ -624,7 +656,12 @@ try:
 
 
 	if args.mode == 'push':
-		push_to_remarkable(args.documents, destination=args.output_destination)
+		if args.output_destination is None and args.conflict_behavior not in ['replace', 'replace-pdf-only']:
+			failed_uploads = upload_directly(args.documents)
+			if failed_uploads:
+				push_to_remarkable(failed_uploads, destination=args.output_destination)
+		else:
+			push_to_remarkable(args.documents, destination=args.output_destination)
 	elif args.mode == 'pull':
 		pull_from_remarkable(args.documents, destination=args.output_destination)
 	elif args.mode == 'backup':
