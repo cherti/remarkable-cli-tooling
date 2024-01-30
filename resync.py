@@ -16,6 +16,7 @@ import re
 default_prepdir = tempfile.mkdtemp(prefix="resync-")
 
 ssh_socketfile = '/tmp/remarkable-push.socket'
+ssh_options="-o BatchMode=yes"
 
 parser = argparse.ArgumentParser(description='Push and pull files to and from your reMarkable')
 
@@ -117,8 +118,7 @@ def get_metadata_by_uuid(u):
 	"""
 	retrieves metadata for a given document identified by its uuid
 	"""
-	raw_metadata = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "cat .local/share/remarkable/xochitl/{u}.metadata"')
-	#raw_metadata = subprocess.getoutput(f'ssh -S {ssh_socketfile} root@{ssh_destination} "cat .local/share/remarkable/xochitl/{u}.metadata"')
+	raw_metadata = subprocess.getoutput(f'ssh {ssh_options} -S {ssh_socketfile} root@{args.ssh_destination} "cat .local/share/remarkable/xochitl/{u}.metadata"')
 	try:
 		metadata = json.loads(raw_metadata)
 
@@ -138,9 +138,7 @@ def get_metadata_by_visibleName(name):
 	"""
 	retrieves metadata for all given documents that have the given name set as visibleName
 	"""
-	#pattern = f'"visibleName": "{name}"'
-	cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"visibleName\\": \\"{name}\\"\' .local/share/remarkable/xochitl/*.metadata"'
-	#cmd = f'ssh -S {ssh_socketfile} root@{ssh_destination} "grep -lF \'\\"visibleName\\": \\"{name}\\"\' .local/share/remarkable/xochitl/*.metadata"'
+	cmd = f'ssh {ssh_options} -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"visibleName\\": \\"{name}\\"\' .local/share/remarkable/xochitl/*.metadata"'
 	res = subprocess.getoutput(cmd)
 
 	reslist = []
@@ -301,7 +299,7 @@ class Node:
 			# documents don't have children, this one's easy
 			return
 
-		cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"'
+		cmd = f'ssh {ssh_options} -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"{self.id}\\"\' .local/share/remarkable/xochitl/*.metadata"'
 		children_uuids = set([pathlib.Path(d).stem for d in subprocess.getoutput(cmd).split('\n')])
 		if '' in children_uuids:
 			# if we get an empty string here, there are no children to this folder
@@ -431,7 +429,7 @@ def get_toplevel_files():
 	get a list of all documents in the toplevel My files drawer
 	"""
 
-	cmd = f'ssh -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"\\"\' .local/share/remarkable/xochitl/*.metadata"'
+	cmd = f'ssh {ssh_options} -S {ssh_socketfile} root@{args.ssh_destination} "grep -lF \'\\"parent\\": \\"\\"\' .local/share/remarkable/xochitl/*.metadata"'
 	toplevel_candidates = set([pathlib.Path(d).stem for d in subprocess.getoutput(cmd).split('\n')])
 
 	toplevel_files = []
@@ -572,8 +570,8 @@ def push_to_remarkable(documents, destination=None):
 		for r in root:
 			r.render(args.prepdir)
 
-		subprocess.call(f'scp -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
-		subprocess.call(f'ssh -S {ssh_socketfile} root@{args.ssh_destination} systemctl restart xochitl', shell=True)
+		subprocess.call(f'scp {ssh_options} -r {args.prepdir}/* root@{args.ssh_destination}:.local/share/remarkable/xochitl', shell=True)
+		subprocess.call(f'ssh {ssh_options} -S {ssh_socketfile} root@{args.ssh_destination} systemctl restart xochitl', shell=True)
 
 
 def pull_from_remarkable(documents, destination=None):
