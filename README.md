@@ -159,6 +159,14 @@ For the full set of options, refer to `resign.py --help`:
 
 Nothing needs to be installed on the remarkable.
 
+## Limitations
+
+At this time, this set of tools imposes two limitations on file names in your reMarkable:
+
+  * No `/` in file names, as this is the filesystem separator, messing with the proper mapping of directory trees within your remarkable onto your filesystem
+  * No `'` in file names, as it messes with the remote ssh command construction.
+
+`resync` will check for these and ignore paths that contain such characters.
 
 ## Credits
 
