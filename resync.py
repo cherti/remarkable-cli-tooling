@@ -63,6 +63,19 @@ def logmsg(lvl, msg):
 		print(msg)
 
 
+def name_is_safe(name):
+	"""
+	This function checks visible names against known limitations and errors out instead of running into bugs.
+	"""
+
+	if '/' in name:
+		return False
+	if "'" in name:
+		return False
+
+	return True
+
+
 def gen_did():
 	"""
 	generates a uuid according to necessities (and marks it if desired for debugging and such)
@@ -111,6 +124,9 @@ def get_metadata_by_uuid(u):
 
 		if metadata.get('deleted') or metadata.get('parent') == 'trash':
 			return None
+		elif not name_is_safe(metadata['visibleName']):
+			logmsg(1, f"document/folder name {metadata['visibleName']} contains unsupported characters, ignoring")
+			return None
 		else:
 			return metadata
 
@@ -140,7 +156,7 @@ def get_metadata_by_visibleName(name):
 			u, _ = filename.split('.')
 
 			metadata = get_metadata_by_uuid(u)
-			if metadata:
+			if metadata is not None:
 				reslist.append((u, metadata))
 
 	return reslist
@@ -293,20 +309,21 @@ class Node:
 
 		for chu in children_uuids:
 			md = get_metadata_by_uuid(chu)
-			if md['type'] == "CollectionType":
-				ch = Folder(md['visibleName'], parent=self)
-			else:
+			if md is not None:
+				if md['type'] == "CollectionType":
+					ch = Folder(md['visibleName'], parent=self)
+				else:
 
-				name = md['visibleName']
+					name = md['visibleName']
 
-				if not name.endswith('.pdf'):
-					name += '.pdf'
+					if not name.endswith('.pdf'):
+						name += '.pdf'
 
-				ch = Document(name, parent=self)
+					ch = Document(name, parent=self)
 
-			ch.id = chu
-			self.add_child(ch)
-			ch.build_downwards()
+				ch.id = chu
+				self.add_child(ch)
+				ch.build_downwards()
 
 
 	def download(self, targetdir=pathlib.Path.cwd()):
