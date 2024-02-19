@@ -97,11 +97,17 @@ If you want to test this script without the risk of messing up your documents, y
   * for pull: the web-interface must be enabled (Settings > Storage > USB web interface)
   * optional: Python's `termcolor`-module to add color to the dry-run output
 
-## reclean.py
+## reclean.py (deprecated)
 
-`reclean.py` will clean up deleted files on your remarkable, i.e. files that are gone from trash by emptying it. Due to the reMarkable typically needing to sync this action with the reMarkable cloud, these files only actually get deleted after their deletion has been synced to the cloud. If no reMarkable account is configured, this is never, hence they indefinitely stay on the device. `reclean.py` takes that place, cleaning up those leftovers to free the space on the remarkable again.
+~`reclean.py` will clean up deleted files on your remarkable, i.e. files that are gone from trash by emptying it. Due to the reMarkable typically needing to sync this action with the reMarkable cloud, these files only actually get deleted after their deletion has been synced to the cloud. If no reMarkable account is configured, this is never, hence they indefinitely stay on the device. `reclean.py` takes that place, cleaning up those leftovers to free the space on the remarkable again.~
 
-`reclean.py` also searches for orphaned documents, i.e. documents that are missing their metadata and are, as a consequence never picked up by the reMarkable UI (and they don't have a deleted flag either, as this would be noted in said metadata). Those files are cleaned up as well, if the user desires.
+The above is no longer accurate, in software versions of at least 3.9.4.2018 (that's the one I could verify this for, it might have been introduced in earlier versions even) reMarkable will delete all of the data and only leave a `*.tombstone` file of negligible size (4K), which only contains a timestamp of deletion (which is probably used for reporting to the remarkable cloud on next sync).
+Given that this size is negligible in size, `reclean.py` is deprecated for all use cases except the one below (which should however never happen in the first place unless something is buggy or things were manually fiddled with).
+
+`reclean.py` can still search for orphaned documents, i.e. documents that are missing their metadata and are, as a consequence never picked up by the reMarkable UI (and they don't have a deleted flag either, as this would be noted in said metadata). Those files are cleaned up as well, if the user desires.
+
+This includes tombstones, as they are also files without associated metadata.
+That being said, ssh-ing into the device and running `rm ~/.local/share/remarkable/xochitl/*.tombstone` executes unconditionally faster than `reclean.py`.
 
 ### Usage
 
